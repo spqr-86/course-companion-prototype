@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Course Companion</title>
+<meta name="description" content="Кликабельный прототип Course Companion: библиотека, курс ШАД и лекция Tools & MCP с code-video и лабораторией.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#view">К содержимому</a>
+
+<header class="topbar">
+  <button class="icon-btn" id="menu-btn" type="button" aria-label="Открыть навигацию" aria-controls="side" aria-expanded="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+  <a class="brand brand--compact" href="#library"><span class="brand-mark" aria-hidden="true"></span>Course Companion</a>
+  <button class="icon-btn" type="button" data-open-chat aria-label="Открыть чат лекции">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4z"/></svg>
+  </button>
+</header>
+
+<div class="shell">
+  <aside class="side" id="side" aria-label="Навигация">
+    <a class="brand" href="#library">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span><b>Course Companion</b><small>личная учебная платформа</small></span>
+    </a>
+    <nav class="side-nav" id="side-nav"></nav>
+    <div class="side-foot">
+      <span class="proto-pill">Прототип 0.1</span>
+      <p>Материалы лекции 1.2 подготовлены заранее. Агент, импорт и связь с Орио ещё не подключены.</p>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim" hidden></div>
+
+  <main id="view" class="view" tabindex="-1"></main>
+</div>
+
+<aside class="chat" id="chat" aria-label="Чат лекции" aria-hidden="true">
+  <div class="chat-head">
+    <div>
+      <div class="eyebrow">Чат лекции · Tools &amp; MCP</div>
+      <span class="demo-tag">Демо: ответы подготовлены заранее</span>
+    </div>
+    <button class="icon-btn" type="button" id="chat-close" aria-label="Закрыть чат">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="chat-log" id="chat-log" aria-live="polite"></div>
+  <div class="chat-suggest" id="chat-suggest"></div>
+  <form class="chat-form" id="chat-form">
+    <label class="sr" for="chat-input">Вопрос по лекции</label>
+    <input id="chat-input" type="text" autocomplete="off" placeholder="Спросите о лекции…">
+    <button class="btn btn--primary" type="submit">Отправить</button>
+  </form>
+</aside>
+
+<div class="modal" id="add-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="add-title">
+    <div class="modal-head">
+      <h2 id="add-title">Новый курс</h2>
+      <button class="icon-btn" type="button" data-close-modal aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <form id="add-form" class="add-form">
+      <label for="add-name">Название</label>
+      <input id="add-name" type="text" required placeholder="Например: LangChain Academy — LangGraph">
+      <label for="add-links">Ссылки на видео и страницы</label>
+      <textarea id="add-links" rows="3" placeholder="По одной ссылке в строке"></textarea>
+      <label for="add-files">Файлы: слайды, ноутбуки, конспекты</label>
+      <input id="add-files" type="file" multiple>
+      <fieldset>
+        <legend>Как собирать</legend>
+        <label class="radio"><input type="radio" name="add-mode" id="add-mode-items" value="items" checked> Только эти ссылки и файлы</label>
+        <label class="radio"><input type="radio" name="add-mode" id="add-mode-course" value="course"> Весь курс по ссылке, включая страницы за логином</label>
+        <p class="hint">Какой режим нужен, ещё не решено: это открытый вопрос Q1 в спецификации.</p>
+      </fieldset>
+      <div class="build" id="add-build" hidden></div>
+      <div class="modal-actions">
+        <button class="btn" type="button" data-close-modal>Отмена</button>
+        <button class="btn btn--primary" type="submit" id="add-submit">Создать пространство</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="data/content.js"></script>
+<script src="js/codevideo.js"></script>
+<script src="js/lab.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

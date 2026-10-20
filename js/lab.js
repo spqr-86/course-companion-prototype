@@ -1,0 +1,290 @@
+/* Лаборатория L01: повтор вызова cancel_booking.
+   Учебная симуляция: модель, сеть и база смоделированы в браузере. Логика функции повторяет
+   ячейку 35 ноутбука: статус не проверяется, seats += 1 и возврат на каждый вызов. */
+(function () {
+  const SCEN = {
+    success: { title: "Успешный вызов", desc: "Верные аргументы, ответ дошёл с первого раза." },
+    badargs: { title: "Неправильные аргументы", desc: "Модель передаёт id вместо booking_id. Схема отклоняет вызов." },
+    lost: { title: "Ответ потерян", desc: "Функция выполнилась, ответ не дошёл. Агент повторяет вызов." }
+  };
+  const PHASE = { user: "Пользователь", model: "Модель", call: "Вызов", exec: "Выполнение", result: "Результат", error: "Ошибка", net: "Сеть", done: "Итог" };
+  const PRICE = 120;
+  const CALL_ID = "call_01";
+  const KEY = "idem:call_01";
+  const FINAL = "Your booking BKG-123 has been successfully canceled. A refund of $120 will be processed back to your account.";
+
+  function initState() {
+    return { status: "confirmed", seats: 3, refunds: [], sent: 0, exec: 0, store: {}, msgs: [], told: null };
+  }
+
+  // Шаг: { ph, run(state, withKey) -> текст журнала }
+  function buildSteps(scenario, withKey, losses) {
+    const steps = [];
+    const add = (ph, run) => steps.push({ ph, run });
+    const keyNote = () => withKey ? ` Заголовок Idempotency-Key: ${KEY}.` : " Ключа нет.";
+
+    add("user", s => {
+      s.msgs.push({ cls: "human", k: "HumanMessage", v: "I confirm the cancellation of booking BKG-123" });
+      return "Пользователь подтверждает отмену брони BKG-123.";
+    });
+
+    const modelCall = args => add("model", s => {
+      s.msgs.push({ cls: "ai-call", k: "AIMessage", v: `tool_calls=[cancel_booking(${JSON.stringify(args)})] · id=${CALL_ID}` });
+      return `Модель вернула tool_call: cancel_booking(${JSON.stringify(args)}).`;
+    });
+    const send = label => add("call", s => { s.sent++; return `${label}.${keyNote()}`; });
+    const exec = () => add("exec", s => {
+      if (withKey && s.store[KEY]) {
+        return `Сервер нашёл ключ ${KEY} и вернул сохранённый ответ. Функция не запускалась, база не изменилась.`;
+      }
+      const again = s.status === "cancelled";
+      const seatsBefore = s.seats;
+      s.exec++;
+      s.status = "cancelled";
+      s.seats += 1;
+      s.refunds.push(PRICE);
+      if (withKey) s.store[KEY] = true;
+      return again
+        ? `cancel_booking выполнен ещё раз. Статус уже cancelled, но код его не проверяет: мест ${seatsBefore} → ${s.seats}, ещё один возврат ${PRICE} $.`
+        : `cancel_booking выполнен: статус cancelled, мест ${seatsBefore} → ${s.seats}, возврат ${PRICE} $.`;
+    });
+    const lost = n => add("net", () => `Ответ потерян: через 10 с таймаут${n > 1 ? ` (${n}-й раз)` : ""}. Агент не знает, выполнилась ли отмена.`);
+    const result = () => add("result", s => {
+      s.msgs.push({ cls: "tool", k: "ToolMessage", v: `{"success": true, "refund": ${PRICE}} · ${CALL_ID}` });
+      return `Ответ дошёл: ToolMessage {"success": true, "refund": ${PRICE}}.`;
+    });
+    const answer = () => add("model", s => {
+      s.msgs.push({ cls: "ai", k: "AIMessage", v: FINAL });
+      s.told = PRICE;
+      return `Модель отвечает пользователю: бронь отменена, возврат ${PRICE} $.`;
+    });
+
+    if (scenario === "badargs") {
+      modelCall({ id: "BKG-123" });
+      send("Агент отправляет вызов #1");
+      add("error", s => {
+        s.msgs.push({ cls: "tool-err", k: "ToolMessage", v: "Error: validation error for cancel_booking · booking_id: Field required. Please fix your mistakes." });
+        return "Аргументы не прошли проверку схемы: нет booking_id. Функция не запускалась. Ошибка вернулась модели как ToolMessage.";
+      });
+      add("model", s => {
+        s.msgs.push({ cls: "ai-call", k: "AIMessage", v: `tool_calls=[cancel_booking({"booking_id":"BKG-123"})] · id=call_02` });
+        return "Модель прочитала ошибку и повторила вызов с правильным именем аргумента.";
+      });
+      send("Агент отправляет вызов #2");
+      exec();
+      result();
+      answer();
+    } else {
+      modelCall({ booking_id: "BKG-123" });
+      send("Агент отправляет вызов #1");
+      exec();
+      if (scenario === "lost") {
+        for (let r = 1; r <= losses; r++) {
+          lost(r);
+          send(`Повтор ${r} из ${losses}: тот же вызов ${CALL_ID}`);
+          exec();
+        }
+      }
+      result();
+      answer();
+    }
+    return steps;
+  }
+
+  function verdict(s, scenario) {
+    const refunded = s.refunds.reduce((a, b) => a + b, 0);
+    if (s.exec > 1) {
+      return { good: false, title: `Двойной эффект: функция выполнена ${s.exec} раза`,
+        text: `Пользователю сообщили о возврате ${s.told} $, оформлено ${refunded} $. В продаже ${s.seats} мест вместо 4, хотя отменена одна бронь.` };
+    }
+    if (scenario === "badargs") {
+      return { good: true, title: "Одна отмена, ошибка понятна модели",
+        text: "Неверный вызов остановила проверка схемы до запуска функции. Сообщение об ошибке назвало недостающий аргумент, модель исправилась сама." };
+    }
+    if (scenario === "lost") {
+      return { good: true, title: "Один эффект при нескольких вызовах",
+        text: `Отправлено вызовов: ${s.sent}, выполнение одно. Повтор с тем же ключом вернул сохранённый ответ: одно место, один возврат ${PRICE} $.` };
+    }
+    return { good: true, title: "Один вызов — один эффект", text: `Бронь отменена, мест 3 → 4, возврат ${PRICE} $.` };
+  }
+
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]));
+
+  function mount(root) {
+    const P = { scenario: "lost", key: false, compare: true, losses: 1, speed: 1 };
+    let lanes = [], pos = 0, total = 0, timer = null, outTab = "log", prevVals = {};
+
+    root.innerHTML = `
+<div class="sim-banner"><b>Учебная симуляция</b><span>Модель, сеть и база смоделированы в браузере, реальные API не вызываются. Логика cancel_booking повторяет код ноутбука. Ключ идемпотентности — учебное дополнение, в ноутбуке его нет.</span></div>
+<div class="lab">
+  <div class="lab-top"><span class="dot"></span><span class="lab-title"></span></div>
+  <div class="lab-body">
+    <div class="lab-main">
+      <div class="lab-ctl">
+        <button class="btn btn--small" type="button" data-lab="step"><svg viewBox="0 0 16 16"><path d="M10 3h2v10h-2zM3 3v10l6-5z"/></svg>Шаг</button>
+        <button class="btn btn--small btn--primary" type="button" data-lab="run"><svg viewBox="0 0 16 16"><path d="M4 2l10 6-10 6z"/></svg><span>Запуск</span></button>
+        <button class="btn btn--small" type="button" data-lab="reset"><svg viewBox="0 0 16 16"><path d="M8 3a5 5 0 1 1-4.6 3H1.5L4.5 2l3 4H5.6A3 3 0 1 0 8 5z"/></svg>Сброс</button>
+        <label class="sr" for="lab-speed">Скорость</label>
+        <select class="speed" id="lab-speed"><option value="0.5">медленно</option><option value="1" selected>обычно</option><option value="2">быстро</option></select>
+        <span class="pos" aria-live="polite"></span>
+      </div>
+      <div class="lanes"></div>
+      <div class="lab-out">
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" data-out="log" aria-selected="true">Журнал</button>
+          <button type="button" role="tab" data-out="msgs" aria-selected="false">Сообщения</button>
+        </div>
+        <div class="out-body"></div>
+      </div>
+    </div>
+    <div class="lab-side">
+      <div class="ctl-group"><div class="eyebrow">Сценарий</div><div class="scen">
+        ${Object.entries(SCEN).map(([k, v]) => `<button type="button" data-scen="${k}"><b>${v.title}</b><span>${v.desc}</span></button>`).join("")}
+      </div></div>
+      <div class="ctl-group"><div class="eyebrow">Сравнить рядом: без ключа и с ключом</div>
+        <div class="seg-ctl" data-group="compare"><button type="button" data-v="0">Выкл</button><button type="button" data-v="1">Вкл</button></div>
+      </div>
+      <div class="ctl-group"><div class="eyebrow">Ключ идемпотентности</div>
+        <div class="seg-ctl" data-group="key"><button type="button" data-v="0">Без ключа</button><button type="button" data-v="1">С ключом</button></div>
+        <p class="ctl-hint key-hint"></p>
+      </div>
+      <div class="ctl-group losses-group"><div class="eyebrow">Сколько ответов потеряно подряд</div>
+        <div class="seg-ctl" data-group="losses"><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="3">3</button></div>
+      </div>
+      <div class="ctl-group"><div class="eyebrow">Как работает ключ</div>
+<pre class="mini-code">PROCESSED = {}  # ключ → сохранённый ответ
+
+def cancel_booking_idempotent(booking_id, key):
+    if key in PROCESSED:
+        return PROCESSED[key]  # повтор без эффекта
+    result = cancel_booking(booking_id)
+    PROCESSED[key] = result
+    return result</pre>
+        <p class="ctl-hint">Агент берёт ключ из tool_call_id, поэтому повтор того же вызова приходит с тем же ключом.</p>
+      </div>
+    </div>
+  </div>
+</div>`;
+
+    const q = s => root.querySelector(s);
+    const runBtn = q('[data-lab="run"]');
+
+    function rebuild() {
+      stop();
+      const defs = P.compare ? [{ key: false, name: "Без ключа" }, { key: true, name: "С ключом" }] : [{ key: P.key, name: P.key ? "С ключом" : "Без ключа" }];
+      lanes = defs.map(d => ({ ...d, steps: buildSteps(P.scenario, d.key, P.losses) }));
+      total = Math.max(...lanes.map(l => l.steps.length));
+      pos = 0; prevVals = {};
+      syncControls();
+      render();
+    }
+
+    // Состояние линии на позиции pos: проигрываем шаги заново — дёшево и детерминированно.
+    function laneAt(l) {
+      const s = initState(), log = [];
+      const n = Math.min(pos, l.steps.length);
+      for (let i = 0; i < n; i++) log.push({ i: i + 1, ph: l.steps[i].ph, text: l.steps[i].run(s, l.key) });
+      return { s, log, done: n >= l.steps.length };
+    }
+
+    function flap(value, bad, id) {
+      const changed = prevVals[id] !== undefined && prevVals[id] !== value;
+      prevVals[id] = value;
+      return `<span class="flap${bad ? " bad" : ""}${changed ? " flip" : ""}">${String(value).split("").map(c => `<span>${esc(c)}</span>`).join("")}</span>`;
+    }
+
+    function render() {
+      const results = lanes.map(laneAt);
+      root.style.setProperty("--lanes", lanes.length);
+      q(".lab-title").textContent = `lab · cancel_booking · ${P.scenario}${P.scenario === "lost" ? ` ×${P.losses}` : ""} · ${P.compare ? "сравнение: без ключа | с ключом" : (P.key ? "с ключом" : "без ключа")}`;
+      q(".pos").textContent = `шаг ${pos} из ${total}`;
+
+      q(".lanes").innerHTML = lanes.map((l, li) => {
+        const { s, log, done } = results[li];
+        const refunded = s.refunds.reduce((a, b) => a + b, 0);
+        const lastLog = log[log.length - 1];
+        const v = done ? verdict(s, P.scenario) : null;
+        return `<div class="lane">
+  <div class="lane-h"><b>${l.name}</b><span class="key-pill${l.key ? " on" : ""}">${l.key ? KEY : "ключа нет"}</span></div>
+  <div class="board" aria-label="Состояние базы">
+    <div class="board-row"><div><div class="lbl">Бронь BKG-123 · Jane Doe</div><div class="val">${s.status === "cancelled" ? "CANCELLED" : "CONFIRMED"}</div></div></div>
+    <div class="board-row"><div><div class="lbl">Рейс AY001 · HEL → AMS · 22.02 09:30</div><div class="val">мест в продаже</div></div>${flap(s.seats, s.seats > 4, li + "s")}</div>
+    <div class="board-row"><div><div class="lbl">Возвраты Jane Doe</div><div class="val">${s.refunds.length ? s.refunds.map(r => r + " $").join(" + ") : "нет"}</div></div>${flap(refunded, refunded > PRICE, li + "r")}</div>
+  </div>
+  <div class="counters">
+    <div class="counter"><b>${s.sent}</b><span>вызовов отправлено</span></div>
+    <div class="counter exec${s.exec > 1 ? " bad" : ""}"><b>${s.exec}</b><span>фактических выполнений</span></div>
+    <div class="counter${refunded > PRICE ? " bad" : ""}"><b>${refunded} $</b><span>возвращено</span></div>
+  </div>
+  <div class="now-step">${lastLog
+    ? `<span class="ph ${lastLog.ph}">${lastLog.i}. ${PHASE[lastLog.ph]}</span><span>${esc(lastLog.text)}</span>`
+    : `<span class="ph done">Готово к запуску</span><span>Нажмите «Шаг», чтобы пройти сценарий по одному событию, или «Запуск».</span>`}</div>
+  ${v ? `<div class="verdict ${v.good ? "good" : "bad"}"><b>${esc(v.title)}</b>${esc(v.text)}</div>` : ""}
+</div>`;
+      }).join("");
+
+      root.querySelectorAll("[data-out]").forEach(b => b.setAttribute("aria-selected", b.dataset.out === outTab));
+      const out = q(".out-body");
+      if (outTab === "log") {
+        const rows = [];
+        for (let i = 0; i < pos; i++) results.forEach((r, li) => { if (r.log[i]) rows.push({ ...r.log[i], lane: lanes.length > 1 ? lanes[li].name : "" }); });
+        out.innerHTML = rows.length
+          ? `<ol class="log">${rows.map(r => `<li><span class="i">${String(r.i).padStart(2, "0")}</span><span class="ph ${r.ph}">${PHASE[r.ph]}</span><span class="txt">${r.lane ? `<span class="lane-tag">${r.lane}</span>` : ""}${esc(r.text)}</span></li>`).join("")}</ol>`
+          : `<p class="empty">Журнал пуст. Каждое событие сценария появится здесь со своим номером шага.</p>`;
+        const lg = out.querySelector(".log");
+        if (lg) lg.scrollTop = lg.scrollHeight;
+      } else {
+        out.innerHTML = `<div class="msgs-cols">${results.map((r, li) => `<div>${lanes.length > 1 ? `<div class="eyebrow">${lanes[li].name}</div>` : ""}${
+          r.s.msgs.length ? r.s.msgs.map(m => `<div class="msg ${m.cls}"><span class="k">${m.k}</span><span class="v">${esc(m.v)}</span></div>`).join("")
+            : `<p class="empty">Сообщений пока нет.</p>`}</div>`).join("")}</div>`;
+      }
+
+      runBtn.querySelector("span").textContent = timer ? "Пауза" : (pos >= total ? "Заново" : "Запуск");
+      runBtn.querySelector("svg").innerHTML = timer ? '<path d="M4 2h3v12H4zM9 2h3v12H9z"/>' : '<path d="M4 2l10 6-10 6z"/>';
+      q('[data-lab="step"]').disabled = pos >= total;
+    }
+
+    function syncControls() {
+      root.querySelectorAll("[data-scen]").forEach(b => b.setAttribute("aria-pressed", b.dataset.scen === P.scenario));
+      const set = (g, v) => root.querySelectorAll(`[data-group="${g}"] button`).forEach(b => b.setAttribute("aria-pressed", b.dataset.v === String(v)));
+      set("compare", +P.compare); set("key", +P.key); set("losses", P.losses);
+      root.querySelectorAll('[data-group="key"] button').forEach(b => { b.disabled = P.compare; });
+      q(".key-hint").textContent = P.compare ? "В режиме сравнения показаны оба варианта." : "";
+      q(".losses-group").hidden = P.scenario !== "lost";
+    }
+
+    function step() { if (pos < total) { pos++; render(); } if (pos >= total) stop(); }
+    function stop() { if (timer) { clearInterval(timer); timer = null; } }
+    function run() {
+      if (timer) { stop(); render(); return; }
+      if (pos >= total) { pos = 0; prevVals = {}; }
+      timer = setInterval(step, 1100 / P.speed);
+      step();
+    }
+
+    q('[data-lab="step"]').addEventListener("click", () => { stop(); step(); render(); });
+    runBtn.addEventListener("click", run);
+    q('[data-lab="reset"]').addEventListener("click", () => { stop(); pos = 0; prevVals = {}; render(); });
+    q("#lab-speed").addEventListener("change", e => {
+      P.speed = +e.target.value;
+      if (timer) { clearInterval(timer); timer = setInterval(step, 1100 / P.speed); }
+    });
+    root.querySelectorAll("[data-scen]").forEach(b => b.addEventListener("click", () => { P.scenario = b.dataset.scen; rebuild(); }));
+    root.querySelectorAll("[data-group] button").forEach(b => b.addEventListener("click", () => {
+      const g = b.closest("[data-group]").dataset.group, v = +b.dataset.v;
+      if (g === "compare") P.compare = !!v;
+      if (g === "key") P.key = !!v;
+      if (g === "losses") P.losses = v;
+      rebuild();
+    }));
+    root.querySelectorAll("[data-out]").forEach(b => b.addEventListener("click", () => { outTab = b.dataset.out; render(); }));
+
+    rebuild();
+    return {
+      setScenario(name, opts = {}) { P.scenario = name; Object.assign(P, opts); rebuild(); },
+      stop
+    };
+  }
+
+  window.Lab = { mount };
+})();

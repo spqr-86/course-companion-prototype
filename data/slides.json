@@ -1,0 +1,128 @@
+[
+  {
+    "n": 1,
+    "title": "Lecture 1.2",
+    "text": "Lecture 1.2\nTools\nMCP\nZaytseva Alena, \nAI Lead at Yandex Lavka",
+    "t": 92.24,
+    "t_confidence": "high"
+  },
+  {
+    "n": 2,
+    "title": "Contents",
+    "text": "Contents\n01\nLLM without tools\n02\nWhat are tools\n03\nHow tool-calling works\n01\nWhen is protocol \nneeded\n02\nWhat is MCP\n03\nArchitecture and roles\n04\nWhat problems \nare solved\nTools\nMCP\n05\nAbout over-engineering\n04\nTool Design Principles\nAdding tools to our agent\nPractice",
+    "t": 103.72,
+    "t_confidence": "high"
+  },
+  {
+    "n": 3,
+    "title": "LLMs without Tools",
+    "text": "LLMs without Tools\n1. Have limited capabilities due to the specifics of their training\n2. Do not have access to up-to-date information\n3. Cannot take actions on their own",
+    "t": 145.24,
+    "t_confidence": "high"
+  },
+  {
+    "n": 4,
+    "title": "What Are Tools",
+    "text": "What Are Tools\n…more\nSearch()\nCalendar()\nTools\nSubgoal \ndecomposition\nReasoning\nReflection\nPlanning\nContext\nLong-term\nShort-term\nMemory\nAI model\nPrompts\nSystem\nUser\nAssistant\nGuardrails\nAgent runtime\nA tool is a function that an LLM can call \nto interact with external systems\nA tool should include:\n●What it does (text description)\n●Executable function (runtime \nimplementation)\n●Input arguments (with types)\n●Output (with type)",
+    "t": 181.64,
+    "t_confidence": "high"
+  },
+  {
+    "n": 5,
+    "title": "How Tool-Calling Works",
+    "text": "How Tool-Calling Works\nLLMs only generate text — they do not execute code",
+    "t": 207.48,
+    "t_confidence": "high"
+  },
+  {
+    "n": 6,
+    "title": "How to Provide Tools to LLM",
+    "text": "How to Provide Tools to LLM\nProviding tools to an LLM means:\n●The model is informed about available tools – via \nthe system prompt\n●The model learns to generate tool calls when needed \nthrough: \n●Models that support tool calling are trained \non tool-usage examples\n○Using the required format (e.g., special \ntokens)\n●Understanding your tool descriptions\n○Tool descriptions must be clear, precise, \nand consistent.",
+    "t": 277.6,
+    "t_confidence": "high"
+  },
+  {
+    "n": 7,
+    "title": "Tool Design Principles",
+    "text": "Handling Partial Failures\nTools must handle partial failures while \nkeeping the system consistent\ncharge payment → reserve inventory → \ncreate delivery\nIdempotency & Safe Retries\nTools must safely handle repeated calls \n(after crashes, timeouts, agent restarts)\nSending an email → gets timeout → retry \nmust not send it twice\nClear Error Messages\nErrors must be understandable for LLMs \nso the agent can decide what to do next\nGood errors enable the agent to:\n●Ask the user for missing parameters\n●Retry or offer alternatives during \ntemporary outages\nGuidance for Next Steps\nTools can return guidanc",
+    "t": 339.36,
+    "t_confidence": "high"
+  },
+  {
+    "n": 8,
+    "title": "When is Protocol Needed",
+    "text": "When is Protocol Needed\nYes,\nTools have significantly \nexpanded the capabilities of \nLLMs and enabled them to act \nas agents\nBut\n●\nTools are embedded inside \neach agent\n●\nAPIs change over time\n●\nDifferent models expect tools/ \ninvoke them in different formats\n●\nTool reusability remains low\n●\nAny API change requires updating \nmultiple agents\n●\nSystems become fragile and hard \nto scale",
+    "t": 487.28,
+    "t_confidence": "high"
+  },
+  {
+    "n": 9,
+    "title": "What is MCP",
+    "text": "What is MCP\nOn November 25, 2024, Anthropic open-sourced the Model Context Protocol (MCP)\nModel Context Protocol (MCP) is an open standard that enables secure, bidirectional connections \nbetween AI models and external systems (APIs, tools, data sources)\nMCP is the “USB-C port” or “HTTP layer” of the AI ecosystem.\nhttps://www.anthropic.com/news/model-context-protocol\nhttps://modelcontextprotocol.io/docs/getting-started/intro",
+    "t": 545.24,
+    "t_confidence": "high"
+  },
+  {
+    "n": 10,
+    "title": "Architecture & Roles",
+    "text": "Architecture & Roles\nClient–server architecture with three roles",
+    "t": 588.44,
+    "t_confidence": "high"
+  },
+  {
+    "n": 11,
+    "title": "Roles: Host",
+    "text": "Roles: Host\nOrchestrates LLMs \nand AI workflows\nManages connections: \none MCP client per MCP \nserver\nControls UI: User-facing \napplication (e.g., Cursor, \ncustom agents)\nSecurity & permissions: \nauth, limits, policies\nUser consent: approvals \nfor data sharing & tool \nuse",
+    "t": 669.96,
+    "t_confidence": "high"
+  },
+  {
+    "n": 12,
+    "title": "Roles: Server",
+    "text": "Roles: Server\nServer = provider of context and capabilities\n●\nA lightweight program exposing tools, context, and capabilities\n●\nCan run locally or remotely\nTasks:\n●\nRegisters capabilities\n●\nProcesses requests\n●\nProviding context\n●\nClient connection handling\n●\nSends updates/notifications to clients",
+    "t": 723.16,
+    "t_confidence": "high"
+  },
+  {
+    "n": 13,
+    "title": "Roles: Client",
+    "text": "Roles: Client\nClient = connector between Host and Server\n●\nProtocol communication: JSON-RPC 2.0 requests, secure \ncommunication channels\n●\nCapability negotiation: features & versions during initialization\n●\nTool execution: sends tool calls, returns results\n●\nReal-time updates: handles server notifications",
+    "t": 778.6,
+    "t_confidence": "high"
+  },
+  {
+    "n": 14,
+    "title": "MCP Flow",
+    "text": "MCP Flow",
+    "t": 809.88,
+    "t_confidence": "high"
+  },
+  {
+    "n": 15,
+    "title": "Recap: problems solved",
+    "text": "Recap: problems solved\nProblem\nWithout MCP\nWith MCP\nTool reusability\nEach team reimplemented the same \ntools independently. \nTools live in MCP servers — standalone infrastructure \ncomponents (like microservices). \nWrite once → reuse across many agents and products.\nAPI updates & maintenance\nAll agent teams had to update their \nintegrations manually.\nResponsibility shifts to MCP server maintainers. Agents \nautomatically discover updated capabilities during \ninitialization.\nScaling and modifications\nComponents were tightly coupled. \nChanging one component required \nrewriting many parts in each a",
+    "t": 902.08,
+    "t_confidence": "high"
+  },
+  {
+    "n": 16,
+    "title": "But",
+    "text": "https://agentskills.io/home\nDo not over-engineer. Start simple. Add MCP when complexity forces you.\nIn the middle ground you can use lightweight tool ecosystems \n(e.g., AgentSkills) that provide:\n●Ready-to-use skills\n●Standardized interfaces\n●Faster development without heavy infrastructure\n●A stepping stone toward more structured architectures like MCP\nBut",
+    "t": 1013.6,
+    "t_confidence": "high"
+  },
+  {
+    "n": 17,
+    "title": "Ready-to-use Tools",
+    "text": "Ready-to-use Tools\n●https://docs.langchain.com/oss/python/integrations/tools \n●https://github.com/punkpeye/awesome-mcp-servers \n●https://zapier.com/mcp \n●https://www.tavily.com/",
+    "t": 1049.36,
+    "t_confidence": "medium"
+  },
+  {
+    "n": 18,
+    "title": "Thank you!",
+    "text": "Thank you!\nZaytseva Alena",
+    "t": null,
+    "t_confidence": "none"
+  }
+]
