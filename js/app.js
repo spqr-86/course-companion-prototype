@@ -11,6 +11,8 @@
     return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0");
   };
   const norm = s => s.toLowerCase().replace(/ё/g, "е");
+  const clip = (s, n) => (s = String(s).replace(/\s+/g, " ").trim()).length > n ? s.slice(0, n - 1) + "…" : s;
+  const X = window.Custom;
   const ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2l10 6-10 6z"/></svg>';
 
   const S = {
@@ -62,6 +64,7 @@
       <a href="#library"${cur("library")}>Библиотека</a>
       <div class="group">Неделя агентов 2026</div>
       <a href="#course-shad"${cur("course-shad")}>Обзор курса</a>
+      <a href="#course-requests"${cur("course-requests")}>Заявки на генерацию${X.activeCount() ? `<span class="cnt">${X.activeCount()}</span>` : ""}</a>
       ${lectures.map(l => l.token
         ? `<a href="#${l.token}"${cur(l.token)}><span class="k">${l.code}</span>${esc(l.title)}</a>`
         : `<a class="off" href="#course-shad" title="Лекция ещё не собрана"><span class="k">${l.code}</span>${esc(l.title)}</a>`).join("")}
@@ -76,6 +79,7 @@
     $$("[data-open-chat]").forEach(b => { b.hidden = !(r.startsWith("lecture") || r.startsWith("tools-mcp")); });
     if (r === "library") return renderLibrary();
     if (r === "course-shad") return renderCourse();
+    if (r === "course-requests") return renderCourse("requests");
     if (r === "lecture-tools-mcp" || r.startsWith("tools-mcp")) return renderLecture(r);
     renderLibrary();
   }
@@ -212,12 +216,13 @@
   const MAT = { video: "Видео", transcript: "Транскрипт", slides: "Слайды", notes: "Конспект", codevideo: "Code-video", lab: "Лаборатория" };
   const MAT_STATE = { ready: "готово", building: "собирается · демо", planned: "в плане · демо", none: "нет" };
 
-  function renderCourse() {
+  function renderCourse(tab = "overview", keep = false) {
     leaveLecture();
     const k = C.course;
     const lectures = k.modules.flatMap(m => m.lectures);
     const full = lectures.filter(l => Object.values(l.state).every(v => v === "ready")).length;
-    $("#view").innerHTML = `
+    const labReady = l => l.ready || X.labDone(l.code);
+    const head = `
 <div class="page">
   <nav class="crumbs" aria-label="Путь"><a href="#library">Библиотека</a><span>/</span><span>${esc(k.title)}</span></nav>
   <div class="course-head">
@@ -229,9 +234,17 @@
     <div class="course-stats">
       <div><b>${lectures.length}</b><span>лекций</span></div>
       <div><b>${full}</b><span>собрана полностью</span></div>
-      <div><b>${k.labs.filter(l => l.ready).length} / ${k.labs.length}</b><span>лабораторий готово</span></div>
+      <div><b>${k.labs.filter(labReady).length} / ${k.labs.length}</b><span>лабораторий готово</span></div>
     </div>
   </div>
+  <nav class="ctabs" aria-label="Разделы курса">
+    <a href="#course-shad"${tab === "overview" ? ' aria-current="page"' : ""}>Обзор</a>
+    <a href="#course-requests"${tab === "requests" ? ' aria-current="page"' : ""}>Заявки${X.activeCount() ? ` <span class="cnt">${X.activeCount()}</span>` : ""}</a>
+  </nav>`;
+    const y = window.scrollY;
+    if (tab === "requests") {
+      $("#view").innerHTML = `<div class="page">${head}<div class="section-h"><h2>Заявки на генерацию</h2><p>Code-video и лаборатории: план → подтверждение → черновик → решение</p></div>${X.renderRequests()}</div>`;
+    } else $("#view").innerHTML = `<div class="page">${head}
 
   <div class="section-h"><h2>Модули и лекции</h2>
     <div class="legend"><span><span class="mat ready"><i></i>готово</span></span><span><span class="mat building"><i></i>собирается</span></span><span><span class="mat planned"><i></i>в плане</span></span><span><span class="mat"><i></i>нет</span></span></div>
@@ -243,6 +256,11 @@
       ${m.lectures.map(l => {
         const mats = Object.entries(MAT).map(([key, label]) => {
           const st = l.state[key];
+          if (st === "none" && (key === "codevideo" || key === "lab") && !l.token) {
+            const rq = X.matReq(l.code, key);
+            return rq ? `<button class="mat building" type="button" data-req-open="${rq.id}" title="Заявка #${rq.id.slice(1)}"><i></i>${label} · заявка: ${X.STATUS[rq.status]}</button>`
+              : `<button class="mat mat--order" type="button" data-order-mat="${key}" data-lec="${l.code}" title="${label}: нет — заказать генерацию"><i></i>${label} · заказать</button>`;
+          }
           return `<span class="mat ${st}" title="${label}: ${MAT_STATE[st]}"><i></i>${label}${st === "building" || st === "planned" ? ` · ${MAT_STATE[st].split(" · ")[0]}` : ""}</span>`;
         }).join("");
         const body = `<span class="lcode">${l.code}</span>
@@ -254,17 +272,25 @@
       }).join("")}
     </section>`).join("")}
   </div>
-  <p class="hint" style="margin-top:10px">Состояния «собирается» и «в плане» показаны для оценки интерфейса, реальной сборки нет.</p>
+  <p class="hint" style="margin-top:10px">Состояния «собирается» и «в плане» показаны для оценки интерфейса, реальной сборки нет. «Заказать» у пустых материалов открывает план заявки.</p>
 
   <div class="section-h" id="labs"><h2>Каталог лабораторий</h2><p>Эксперименты на примерах из лекций</p></div>
   <div class="labcards">
     ${k.labs.map(l => {
-      const inner = `<div class="top"><span>${l.code} · лекция ${l.lecture}</span><span class="state-pill ${l.ready ? "ready" : "planned"}">${l.ready ? "готова" : "в плане · демо"}</span></div>
+      const rq = X.labReq(l.code), done = X.labDone(l.code);
+      const pill = l.ready ? `<span class="state-pill ready">готова</span>` : done ? `<span class="state-pill ready">готова · черновик принят</span>`
+        : rq ? `<span class="rstate ${rq.status}">${X.STATUS[rq.status]}</span>` : `<span class="state-pill planned">в плане · демо</span>`;
+      const inner = `<div class="top"><span>${l.code} · лекция ${l.lecture}</span>${pill}</div>
         <h3>${esc(l.title)}</h3><p>${esc(l.text)}</p>`;
-      return l.ready ? `<a class="labcard" href="#${l.token}">${inner}</a>` : `<div class="labcard planned">${inner}</div>`;
+      if (l.ready) return `<a class="labcard" href="#${l.token}">${inner}</a>`;
+      if (done) return `<button class="labcard" type="button" data-req-open="${rq.id}">${inner}<span class="go">Открыть в лекции →</span></button>`;
+      return `<div class="labcard planned">${inner}<div class="labcard-act">${rq
+        ? `<button class="btn btn--small" type="button" data-req-open="${rq.id}">Заявка #${rq.id.slice(1)} →</button>`
+        : `<button class="btn btn--small" type="button" data-order-lab="${l.code}">Заказать</button>`}</div></div>`;
     }).join("")}
   </div>
 </div>`;
+    if (keep) { window.scrollTo(0, y); return; }
     $("#view").focus({ preventScroll: true });
     window.scrollTo(0, 0);
   }
@@ -387,6 +413,7 @@
     <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
       <button class="chip" type="button" data-seek="${M.idempotency.t}">${ICON_PLAY}<span class="tc">${fmt(M.idempotency.t)}</span> ${esc(M.idempotency.label)}</button>
       <button class="chip" type="button" data-seek="${M.errors.t}">${ICON_PLAY}<span class="tc">${fmt(M.errors.t)}</span> ${esc(M.errors.label)}</button>
+      <button class="chip chip--dashed" type="button" data-order-lab="L02" data-origin="«Сделать похожую» под L01">+ Сделать похожую: частичный сбой транзакции</button>
     </div>
   </section>
 </div>`;
@@ -551,6 +578,7 @@
         `<p class="tr-para"><button type="button" class="tr-tc" data-seek="${D.segs[p[0]].t}">${fmt(D.segs[p[0]].t)}</button>${p.map(i => `<span class="seg" data-i="${i}" data-seek="${D.segs[i].t}">${esc(D.segs[i].text)}</span>`).join(" ")}</p>`).join("")}</div>`);
     });
     body.innerHTML = parts.join("");
+    X.decorateTranscript(body);
     updateNow(S.now, true);
   }
 
@@ -664,6 +692,7 @@
     const h7 = $("#n-7", el);
     if (h7) { const c = h7.nextElementSibling; (c && c.classList.contains("sec-chips") ? c : h7).insertAdjacentHTML("afterend", FIG_MCP); }
 
+    X.decorateNotes(el);
     $("#toc").innerHTML = `<div class="eyebrow">Разделы</div>` + toc.map(t => `<a href="#tools-mcp-notes" data-notes="${t.n}">${t.n}. ${esc(t.title)}</a>`).join("");
     if ("IntersectionObserver" in window) {
       const io = new IntersectionObserver(es => {
@@ -709,8 +738,8 @@
   }
 
   /* ---------- События лекции ---------- */
-  function bindLecture() {
-    const view = $("#view");
+  // Делегированные обработчики вешаются на #view один раз: элемент переживает смену экранов.
+  function bindView(view) {
     view.addEventListener("click", e => {
       const seekEl = e.target.closest("[data-seek]");
       const notesEl = e.target.closest("[data-notes]");
@@ -720,6 +749,8 @@
       const wt = e.target.closest("[data-wt]");
       const labScen = e.target.closest("[data-lab-scen]");
       const secLink = e.target.closest('a[href^="#tools-mcp-"]');
+      // выделение текста в транскрипте не должно перематывать видео
+      if (e.target.closest(".seg") && String(getSelection()).trim().length > 2) return;
       if (notesEl && (!seekEl || seekEl.contains(notesEl))) { e.preventDefault(); goNotes(+notesEl.dataset.notes); return; }
       if (labScen && S.lab) S.lab.setScenario(labScen.dataset.labScen, { compare: true });
       if (secLink && !seekEl && secLink.getAttribute("href") === location.hash) { e.preventDefault(); scrollToSection(location.hash.slice(1)); return; }
@@ -738,6 +769,11 @@
       const ch = e.target.closest(".chap");
       if (ch && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); seek(+ch.dataset.seek); }
     });
+  }
+
+  function bindLecture() {
+    if (!S.viewBound) bindView($("#view"));
+    S.viewBound = true;
     $("#tr-q").addEventListener("input", e => renderTranscript(e.target.value.trim()));
     $("#tr-follow").addEventListener("change", e => { S.follow = e.target.checked; });
     // локальная навигация подсвечивает видимый раздел
@@ -749,7 +785,7 @@
       }), { rootMargin: "-30% 0px -60% 0px" });
       ["video", "notes", "code", "codevideo", "lab"].forEach(s => { const el = $("#sec-" + s); if (el) io.observe(el); });
     }
-    $$("[data-open-chat]", view).forEach(b => b.addEventListener("click", openChat));
+    $$("[data-open-chat]", $("#view")).forEach(b => b.addEventListener("click", openChat));
   }
 
   /* ---------- Чат (демо) ---------- */
@@ -760,44 +796,75 @@
     if (r.lab) return `<button class="chip chip--strong" type="button" data-ref-lab="${r.lab}">${esc(r.label)}</button>`;
     return "";
   }
+  // Ссылки чата в формате карточки конспекта: {t, label} | {notes} | {lab, label}.
+  const cardRefs = refs => refs.map(r => r.moment ? { t: C.moments[r.moment].t, label: C.moments[r.moment].label } : r.codevideo != null ? null : r).filter(Boolean);
+  const MSGS = [];
+  function botAnswer(tag, q, a, refs, sec, refsHtml) {
+    const id = MSGS.push({ q, a, refs, sec }) - 1;
+    return `<div class="bubble bot"><span class="demo-tag">${tag}</span><span>${esc(a)}</span>${refsHtml ? `<div class="refs">${refsHtml}</div>` : ""}
+      <div class="bubble-act"><button class="link-btn" type="button" data-pin="${id}">+ Добавить в конспект${sec ? ` §${sec}` : ""}</button></div></div>`;
+  }
   function setupChat() {
     const log = $("#chat-log");
-    log.innerHTML = `<div class="bubble bot"><span class="demo-tag">Демо</span><span>Я отвечаю по материалам этой лекции и даю ссылки на моменты видео, разделы конспекта и лабораторию. В прототипе ответы подготовлены заранее — выберите вопрос ниже.</span></div>`;
-    $("#chat-suggest").innerHTML = C.chat.map((c, i) => `<button type="button" data-q="${i}">${esc(c.q)}</button>`).join("");
+    log.innerHTML = `<div class="bubble bot"><span class="demo-tag">Демо</span><span>Я отвечаю по материалам этой лекции и даю ссылки на моменты видео, разделы конспекта и лабораторию. В прототипе ответы подготовлены заранее — выберите вопрос ниже или нажмите «+» у абзаца конспекта.</span></div>`;
+    const SCENE_Q = "Собери лабораторию про частичный сбой транзакции";
+    $("#chat-suggest").innerHTML = C.chat.map((c, i) => `<button type="button" data-q="${i}">${esc(c.q)}</button>`).join("") +
+      `<button type="button" data-q-scene>${SCENE_Q}</button>`;
     const ask = (q, a) => {
-      log.insertAdjacentHTML("beforeend", `<div class="bubble me">${esc(q)}</div>`);
+      log.insertAdjacentHTML("beforeend", `<div class="bubble me">${q}</div>`);
       log.insertAdjacentHTML("beforeend", a);
       log.scrollTop = log.scrollHeight;
     };
     $("#chat-suggest").addEventListener("click", e => {
+      if (e.target.closest("[data-q-scene]")) { ask(esc(SCENE_Q), X.sceneReply(SCENE_Q)); return; }
       const b = e.target.closest("[data-q]");
       if (!b) return;
-      const c = C.chat[+b.dataset.q];
-      ask(c.q, `<div class="bubble bot"><span class="demo-tag">Демо-ответ, подготовлен заранее</span><span>${esc(c.a)}</span><div class="refs">${c.refs.map(refChip).join("")}</div></div>`);
+      const c = C.chat[+b.dataset.q], sec = (c.refs.find(r => r.notes) || {}).notes;
+      ask(esc(c.q), botAnswer("Демо-ответ, подготовлен заранее", c.q, c.a, cardRefs(c.refs), sec, c.refs.map(refChip).join("")) +
+        (+b.dataset.q === 1 ? X.suggestion() : ""));
     });
     $("#chat-form").addEventListener("submit", e => {
       e.preventDefault();
-      const v = $("#chat-input").value.trim();
+      const quote = X.takeQuote();
+      const v = $("#chat-input").value.trim() || (quote ? "Объясни этот фрагмент" : "");
       if (!v) return;
       $("#chat-input").value = "";
-      ask(v, `<div class="bubble bot"><span class="demo-tag">Демо</span><span>Агент чата появится на следующем этапе, свободные вопросы пока без ответа. Попробуйте один из подготовленных вопросов.</span></div>`);
+      if (quote) {
+        const refs = [quote.t != null ? { t: quote.t, label: "этот момент в видео" } : null, { notes: quote.sec }].filter(Boolean);
+        const chips = (quote.t != null ? `<button class="chip" type="button" data-ref-seek="${quote.t}">${ICON_PLAY}<span class="tc">${fmt(quote.t)}</span> этот момент в видео</button>` : "") +
+          `<button class="chip" type="button" data-ref-notes="${quote.sec}">Конспект §${quote.sec}</button>`;
+        ask(`<blockquote class="bq">«${esc(clip(quote.text, 160))}»<span>${esc(quote.label)}</span></blockquote>${esc(v)}`,
+          botAnswer("Демо-ответ, подготовлен заранее", `${v}: «${clip(quote.text, 120)}»`, X.quoteAnswer(quote), refs, quote.sec, chips) + (quote.sec === 4 ? X.suggestion() : ""));
+        return;
+      }
+      if (X.wantsScene(v)) { ask(esc(v), X.sceneReply(v)); return; }
+      ask(esc(v), `<div class="bubble bot"><span class="demo-tag">Демо</span><span>Агент чата появится на следующем этапе, свободные вопросы пока без ответа. Попробуйте подготовленный вопрос или «+» у абзаца конспекта.</span></div>`);
     });
     log.addEventListener("click", e => {
+      const pin = e.target.closest("[data-pin]");
+      if (pin) {
+        const sec = X.pinChat(MSGS[+pin.dataset.pin]);
+        pin.outerHTML = `<button class="link-btn" type="button" data-ref-notes="${sec}">Добавлено в конспект §${sec} →</button>`;
+        return;
+      }
       const s = e.target.closest("[data-ref-seek]"), n = e.target.closest("[data-ref-notes]"),
         cv = e.target.closest("[data-ref-cv]"), lab = e.target.closest("[data-ref-lab]");
       if (!(s || n || cv || lab)) return;
       if (window.innerWidth < 1100) closeChat();
-      const act = () => {
+      goLecture(() => {
         if (s) seek(+s.dataset.refSeek);
         if (n) goNotes(+n.dataset.refNotes);
         if (cv) { S.cv.goStep(+cv.dataset.refCv); $("#sec-codevideo").scrollIntoView({ behavior: "smooth" }); }
         if (lab) { S.lab.setScenario(lab.dataset.refLab, { compare: true }); $("#sec-lab").scrollIntoView({ behavior: "smooth" }); }
-      };
-      if (S.lectureMounted) act();
-      else { location.hash = "lecture-tools-mcp"; const wait = setInterval(() => { if (S.lectureMounted) { clearInterval(wait); act(); } }, 100); }
+      });
     });
     $("#chat-close").addEventListener("click", closeChat);
     $$(".topbar [data-open-chat]").forEach(b => b.addEventListener("click", openChat));
+  }
+  function goLecture(cb) {
+    if (S.lectureMounted) { cb(); return; }
+    location.hash = "lecture-tools-mcp";
+    const wait = setInterval(() => { if (S.lectureMounted) { clearInterval(wait); setTimeout(cb, 250); } }, 100);
   }
   function openChat() { const c = $("#chat"); c.classList.add("open"); c.setAttribute("aria-hidden", "false"); setTimeout(() => $("#chat-input").focus(), 250); }
   function closeChat() { const c = $("#chat"); c.classList.remove("open"); c.setAttribute("aria-hidden", "true"); }
@@ -808,6 +875,12 @@
 
   $("#menu-btn").addEventListener("click", () => $("#side").classList.contains("open") ? closeSide() : openSide());
   $("#scrim").addEventListener("click", closeSide);
+  window.CCApp = { data: () => S.data, now: () => S.now, chapterAt, seek, goNotes, openChat, closeChat, goLecture };
+  document.addEventListener("cc:changed", () => {
+    const r = (location.hash || "#library").slice(1) || "library";
+    renderSide(r);
+    if (r === "course-shad" || r === "course-requests") renderCourse(r === "course-requests" ? "requests" : "overview", true);
+  });
   setupAdd();
   setupChat();
   window.addEventListener("hashchange", route);
