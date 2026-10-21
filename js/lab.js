@@ -115,7 +115,7 @@
     let lanes = [], pos = 0, total = 0, timer = null, outTab = "log", prevVals = {};
 
     root.innerHTML = `
-<div class="sim-banner"><b>Учебная симуляция</b><span>Модель, сеть и база смоделированы в браузере, реальные API не вызываются. Логика cancel_booking повторяет код ноутбука. Ключ идемпотентности — учебное дополнение, в ноутбуке его нет.</span></div>
+<details class="sim-info"><summary>Учебная симуляция · как устроен пример</summary><p>Модель, сеть и база смоделированы в браузере. Логика cancel_booking повторяет ноутбук. Ключ идемпотентности добавлен для сравнения.</p></details>
 <div class="lab">
   <div class="lab-top"><span class="dot"></span><span class="lab-title"></span></div>
   <div class="lab-body">
@@ -128,19 +128,24 @@
         <select class="speed" id="lab-speed"><option value="0.5">медленно</option><option value="1" selected>обычно</option><option value="2">быстро</option></select>
         <span class="pos" aria-live="polite"></span>
       </div>
+      <div class="lab-comparison" aria-live="polite"></div>
+      <button type="button" class="link-btn lab-detail-toggle" aria-expanded="false">Подробное состояние базы</button>
       <div class="lanes"></div>
-      <div class="lab-out">
+      <details class="lab-out">
+        <summary>Журнал и сообщения</summary>
         <div class="tabs" role="tablist">
           <button type="button" role="tab" data-out="log" aria-selected="true">Журнал</button>
           <button type="button" role="tab" data-out="msgs" aria-selected="false">Сообщения</button>
         </div>
         <div class="out-body"></div>
-      </div>
+      </details>
     </div>
     <div class="lab-side">
       <div class="ctl-group"><div class="eyebrow">Сценарий</div><div class="scen">
         ${Object.entries(SCEN).map(([k, v]) => `<button type="button" data-scen="${k}"><b>${v.title}</b><span>${v.desc}</span></button>`).join("")}
       </div></div>
+      <p class="scenario-description"></p>
+      <details class="lab-options"><summary>Условия эксперимента</summary>
       <div class="ctl-group"><div class="eyebrow">Сравнить рядом: без ключа и с ключом</div>
         <div class="seg-ctl" data-group="compare"><button type="button" data-v="0">Выкл</button><button type="button" data-v="1">Вкл</button></div>
       </div>
@@ -162,11 +167,20 @@ def cancel_booking_idempotent(booking_id, key):
     return result</pre>
         <p class="ctl-hint">Агент берёт ключ из tool_call_id, поэтому повтор того же вызова приходит с тем же ключом.</p>
       </div>
+      </details>
     </div>
   </div>
 </div>`;
 
     const q = s => root.querySelector(s);
+    q(".lab-body").prepend(q(".lab-side"));
+    q(".lab-out").open = innerWidth > 640;
+    q(".lab-options").open = innerWidth > 640;
+    q(".lab-detail-toggle").addEventListener("click", e => {
+      const expanded = root.classList.toggle("lab-expanded");
+      e.currentTarget.setAttribute("aria-expanded", String(expanded));
+      e.currentTarget.textContent = expanded ? "Скрыть подробное состояние" : "Подробное состояние базы";
+    });
     const runBtn = q('[data-lab="run"]');
 
     function rebuild() {
@@ -198,6 +212,17 @@ def cancel_booking_idempotent(booking_id, key):
       root.style.setProperty("--lanes", lanes.length);
       q(".lab-title").textContent = `lab · cancel_booking · ${P.scenario}${P.scenario === "lost" ? ` ×${P.losses}` : ""} · ${P.compare ? "сравнение: без ключа | с ключом" : (P.key ? "с ключом" : "без ключа")}`;
       q(".pos").textContent = `шаг ${pos} из ${total}`;
+      q(".scenario-description").textContent = SCEN[P.scenario].desc;
+      q(".lab-options > summary").textContent = `Условия · ${P.compare ? "сравнить оба варианта" : P.key ? "с ключом" : "без ключа"}${P.scenario === "lost" ? ` · потерь: ${P.losses}` : ""}`;
+      q(".lab-comparison").innerHTML = `<table><caption class="sr">Сравнение результатов</caption>
+        <thead><tr><th scope="col">Результат</th>${lanes.map(l => `<th scope="col">${l.name}</th>`).join("")}</tr></thead>
+        <tbody>${[
+          ["Вызовы", r => r.s.sent], ["Выполнения", r => r.s.exec],
+          ["Возврат", r => r.s.refunds.reduce((a, b) => a + b, 0) + " $"],
+          ["Места", r => r.s.seats],
+        ].map(([label, value]) => `<tr><th scope="row">${label}</th>${results.map(r => `<td>${value(r)}</td>`).join("")}</tr>`).join("")}</tbody></table>
+        <p class="comparison-step">${pos === 0 ? "Запустите сценарий и сравните результаты." : esc(results[0].log.at(-1)?.text || "")}</p>
+        ${results.every(r => r.done) ? `<div class="comparison-verdict">${results.map((r, i) => { const v = verdict(r.s, P.scenario); return `<p class="${v.good ? "good" : "bad"}"><b>${lanes[i].name}:</b> ${esc(v.title)}</p>`; }).join("")}</div>` : ""}`;
 
       q(".lanes").innerHTML = lanes.map((l, li) => {
         const { s, log, done } = results[li];

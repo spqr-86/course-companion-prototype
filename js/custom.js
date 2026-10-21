@@ -14,7 +14,7 @@
   const touchUI = () => matchMedia("(max-width: 640px), (hover: none)").matches;
 
   const STATUS = { awaiting: "ждёт подтверждения", queued: "в очереди", building: "собирается", draft: "черновик", accepted: "принято", rejected: "отклонено" };
-  const KIND = { lab: "Лаборатория", codevideo: "Code-video" };
+  const KIND = { lab: "Лаборатория", codevideo: "Анимация кода" };
   const STAGES = ["Разбираю фрагмент и источники", "Пишу сценарии", "Собираю сцену", "Проверяю на примере"];
   const BUDGET = 10;
   const VISUAL = new Set([3, 4, 7, 11]); // разделы, где уже есть схема, code-video или лаборатория
@@ -149,7 +149,7 @@
   function openReq(r) {
     if (r.status === "awaiting") { openPlan(r); return; }
     if (r.sec && r.lecture === "1.2" && !r.seed) {
-      A().goLecture(() => { const c = $(`#req-${r.id}`); if (c) { c.scrollIntoView({ behavior: "smooth", block: "center" }); c.classList.add("flash"); setTimeout(() => c.classList.remove("flash"), 1600); } });
+      A().goLecture(() => { A().showSection("notes"); const c = $(`#req-${r.id}`); if (c) { c.scrollIntoView({ behavior: "smooth", block: "start" }); c.classList.add("flash"); setTimeout(() => c.classList.remove("flash"), 1600); } });
     } else location.hash = "course-requests";
   }
 
@@ -167,14 +167,17 @@
   let planReq = null;
   function openPlan(r, editing = false) {
     ensureModal();
+    if ($("#toast")) $("#toast").hidden = true;
     planReq = r;
     renderPlan(editing);
     modal.hidden = false;
-    setTimeout(() => { const f = $(editing ? "#pl-title" : "[data-plan-act='confirm']", modal); f && f.focus(); }, 30);
+    $(".plan-card", modal).scrollTop = 0;
+    window.CCUI.open(modal, $(editing ? "#pl-title" : "#plan-title", modal), closePlan);
   }
   function closePlan() {
     if (!modal || modal.hidden) return;
     modal.hidden = true;
+    window.CCUI.close(modal);
     if (planReq && planReq.status === "awaiting") toast(`План сохранён: заявка #${planReq.id.slice(1)} ждёт подтверждения во вкладке «Заявки» курса.`);
     planReq = null;
   }
@@ -183,26 +186,28 @@
     const left = BUDGET - spent() - reserved();
     const where = r.sec ? `Лекция ${r.lecture}, конспект §${r.sec}${r.lab ? " · каталог лабораторий" : ""}` : r.lab ? "Каталог лабораторий курса" : `Лекция ${r.lecture}`;
     const head = `<div class="modal-head"><div><div class="eyebrow">Заявка #${r.id.slice(1)} · ${KIND[r.kind]} · ${r.version > 1 ? `переделка, версия ${r.version} · ` : ""}${STATUS[r.status]}</div>
-      <h2 id="plan-title">${esc(r.title)}</h2></div>
+      <h2 id="plan-title" tabindex="-1">${esc(r.title)}</h2></div>
       <button class="icon-btn" type="button" data-plan-act="close" aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-      <span class="demo-tag">Демо: после подтверждения ничего не генерируется, сроки ускорены</span>
+      <span class="hint">Демо · генерация имитируется</span>
       ${r.quote ? `<blockquote class="plan-quote">«${esc(clip(r.quote, 220))}»<span>${r.origin}${r.sec ? ` · §${r.sec}` : ""}</span></blockquote>` : `<p class="hint plan-origin">Откуда: ${esc(r.origin)}</p>`}`;
     if (!editing) {
-      card.innerHTML = head + `<dl class="plan-dl">
-        <dt>Пример</dt><dd>${esc(r.example)}</dd>
+      card.innerHTML = head + `<div class="plan-summary"><p>${esc(r.example)}</p>
+        <div class="plan-estimate"><strong>≈ ${money(r.cost)}</strong><span>${esc(r.time)}</span></div>
+        <p class="hint">Добавится: ${esc(where)}</p></div>
+      <details class="plan-details"><summary>Сценарии, параметры и источники</summary><dl class="plan-dl">
         <dt>Сценарии</dt><dd><ol>${r.scenarios.map(s => `<li>${esc(s)}</li>`).join("")}</ol></dd>
         ${r.params.length ? `<dt>Параметры</dt><dd><ul>${r.params.map(s => `<li>${esc(s)}</li>`).join("")}</ul></dd>` : ""}
         <dt>Источники</dt><dd>${esc(r.sources)}</dd>
-        <dt>Куда встанет</dt><dd>${esc(where)}</dd>
-        <dt>Время и цена</dt><dd>${r.time} работы Орио · ≈ ${money(r.cost)} · свободно в бюджете курса ${money(Math.max(0, left))} из ${money(BUDGET)}</dd>
+        <dt>Бюджет</dt><dd>Свободно ${money(Math.max(0, left))} из ${money(BUDGET)}</dd>
         ${r.wish ? `<dt>Пожелания</dt><dd>${esc(r.wish)}</dd>` : ""}
-      </dl>
-      <p class="hint">После подтверждения Орио собирает черновик в фоне и пишет в Telegram, когда он готов. До вашего «Принять» черновик не меняет материалы лекции.</p>
+      </dl></details>
+      <p class="hint">Сначала вы получите черновик и сможете попробовать его перед добавлением в лекцию.</p>
       <div class="modal-actions">
         <button class="btn" type="button" data-plan-act="cancel">${r.version > 1 ? "Оставить прошлый черновик" : "Отменить заявку"}</button>
         <button class="btn" type="button" data-plan-act="edit">Изменить</button>
-        <button class="btn btn--primary" type="button" data-plan-act="confirm">Подтвердить</button>
+        <button class="btn btn--primary" type="button" data-plan-act="confirm">Подтвердить · ${money(r.cost)}</button>
       </div>`;
+      if (!modal.hidden) { card.scrollTop = 0; $("#plan-title", card).focus({ preventScroll: true }); }
       return;
     }
     card.innerHTML = head + `<form class="add-form plan-form" id="plan-form">
@@ -215,6 +220,7 @@
       <p class="hint">Время и цена в демо не пересчитываются.</p>
       <div class="modal-actions"><button class="btn" type="button" data-plan-act="view">Назад</button><button class="btn btn--primary" type="submit">Сохранить план</button></div>
     </form>`;
+    if (!modal.hidden) { card.scrollTop = 0; $("#pl-title", card).focus({ preventScroll: true }); }
     $("#plan-form", card).addEventListener("submit", e => {
       e.preventDefault();
       const lines = id => $(id, card).value.split("\n").map(s => s.trim()).filter(Boolean);
@@ -231,12 +237,12 @@
     if (act === "cancel") {
       if (r.version > 1) setStatus(r, "draft", { version: r.version - 1 });
       else { st.reqs = st.reqs.filter(x => x !== r); changed(); toast("Заявка отменена до подтверждения."); }
-      planReq = null; modal.hidden = true;
+      planReq = null; modal.hidden = true; window.CCUI.close(modal);
       return;
     }
     if (act === "confirm") {
       setStatus(r, "queued");
-      planReq = null; modal.hidden = true;
+      planReq = null; modal.hidden = true; window.CCUI.close(modal);
       toast(`Заявка #${r.id.slice(1)} в очереди у Орио. Статус — ${r.sec ? `в конспекте §${r.sec} и ` : ""}во вкладке «Заявки» курса.`);
     }
   }
@@ -397,7 +403,7 @@
     if (!st.hint) {
       const first = $("h2[id^='n-']", el);
       first && first.insertAdjacentHTML("beforebegin", `<div class="tip" id="frag-tip"><span class="tip-new">Новое</span>
-        <p>У каждого абзаца есть <b class="plus-demo">+</b>, а выделенный текст открывает то же меню: спросить в чате, объяснить проще, переписать по-своему, заказать сцену.</p>
+        <p>Выделите текст или нажмите <b class="plus-demo">+</b>, чтобы задать вопрос или изменить абзац.</p>
         <button class="btn btn--small" type="button" data-tip-close>Понятно</button></div>`);
     }
     renderAllSecs();
@@ -407,7 +413,7 @@
   }
 
   /* ---------- Меню фрагмента ---------- */
-  let menu, ctx = null, selT;
+  let menu, ctx = null, selT, menuOpener;
   function ensureMenu() {
     if (menu) return menu;
     menu = document.createElement("div");
@@ -432,13 +438,16 @@
   }
   function showMenu(c, rect, mode) {
     ensureMenu();
+    $$(".is-selected").forEach(el => el.classList.remove("is-selected"));
     ctx = c;
+    (c.frag || c.para)?.classList.add("is-selected");
+    menuOpener = document.activeElement;
     const src = c.src === "notes" ? `§${c.sec} ${esc(secTitle(c.sec))}` : `${fmt(c.t)} · ${esc(c.chapter)}`;
     menu.innerHTML = `<div class="fmenu-q"><span>${src}</span>«${esc(clip(c.quote, 90))}»</div>
       <button type="button" role="menuitem" data-fa="ask"><b>Спросить в чате</b><small>цитата уйдёт со ссылкой на ${c.src === "notes" ? `§${c.sec}` : `момент ${fmt(c.t)}`}</small></button>
       <button type="button" role="menuitem" data-fa="simple"><b>Объяснить проще</b><small>пересказ под фрагментом</small></button>
       ${c.rw ? `<button type="button" role="menuitem" data-fa="rewrite"><b>Переписать по-своему</b><small>личная версия, оригинал сохранится</small></button>` : ""}
-      <button type="button" role="menuitem" data-fa="scene"><b>Сделать сцену по этому</b><small>сначала план и ваше подтверждение</small></button>`;
+      <button type="button" role="menuitem" data-fa="scene"><b>Создать объяснение</b><small>анимация или лаборатория · сначала план</small></button>`;
     menu.dataset.mode = mode;
     menu.hidden = false;
     menu.classList.toggle("sheet", touchUI());
@@ -452,7 +461,14 @@
     } else { menu.style.top = ""; menu.style.left = ""; }
     if (mode === "plus") $("button", menu).focus({ preventScroll: true });
   }
-  function hideMenu() { if (menu && !menu.hidden) { menu.hidden = true; ctx = null; } }
+  function hideMenu() {
+    if (menu && !menu.hidden) {
+      const focused = menu.contains(document.activeElement);
+      menu.hidden = true; ctx = null;
+      $$(".is-selected").forEach(el => el.classList.remove("is-selected"));
+      if (focused && menuOpener?.isConnected) menuOpener.focus({ preventScroll: true });
+    }
+  }
 
   function onSelection() {
     const sel = getSelection();

@@ -117,10 +117,14 @@ def cancel_booking(booking_id: str) -> str:
   <div class="cv-top"><span><span class="dot"></span>code-video · один ход агента · cancel_booking</span><span>Сцена собрана вручную по коду ноутбука</span></div>
   <div class="cv-stage">
     <div class="cv-left">
+      <ol class="cv-mobile-flow" aria-label="Участники вызова">
+        ${[["user", "Пользователь"], ["llm", "Код агента"], ["model", "Модель"], ["tools", "Вызов функции"], ["db", "База данных"]].map(([id, label]) => `<li data-node="${id}">${label}</li>`).join("")}
+      </ol>
+      <button class="link-btn cv-diagram-toggle" type="button" aria-expanded="false">Полная схема связей</button>
       <div class="cv-diagram">${SVG}</div>
       <div class="cv-msgs"><div class="eyebrow">state["messages"]</div><div class="cv-msg-list"></div></div>
     </div>
-    <div class="cv-right">
+    <details class="cv-source"><summary>Код и состояние базы</summary><div class="cv-right">
       <div class="cv-file"><span class="cv-fname"></span><span>python</span></div>
       <pre class="code cv-code"></pre>
       <div class="cv-db">
@@ -130,7 +134,7 @@ def cancel_booking(booking_id: str) -> str:
           <div class="board-row"><div><div class="lbl">Рейс AY001 · HEL → AMS · 09:30</div><div class="val">мест в продаже</div></div><div class="flap cv-seats"></div></div>
         </div>
       </div>
-    </div>
+    </div></details>
   </div>
   <div class="cv-caption" aria-live="polite"><span class="step-n"></span><h3></h3><p></p></div>
   <div class="cv-controls">
@@ -154,6 +158,12 @@ def cancel_booking(booking_id: str) -> str:
 </div>`;
 
     const q = s => root.querySelector(s);
+    q(".cv-source").open = innerWidth > 640;
+    q(".cv-diagram-toggle").addEventListener("click", e => {
+      const open = q(".cv-diagram").classList.toggle("expanded");
+      e.currentTarget.setAttribute("aria-expanded", String(open));
+      e.currentTarget.textContent = open ? "Скрыть полную схему" : "Полная схема связей";
+    });
     const svg = q("svg");
     const packet = q(".packet");
     const pRect = packet.querySelector("rect"), pText = packet.querySelector("text");
@@ -180,6 +190,7 @@ def cancel_booking(booking_id: str) -> str:
       const p = Math.min(1, (t - starts[i]) / s.dur);
 
       svg.querySelectorAll(".dg-node").forEach(n => n.classList.toggle("on", s.nodes.includes(n.dataset.n)));
+      root.querySelectorAll(".cv-mobile-flow li").forEach(n => n.classList.toggle("on", s.nodes.includes(n.dataset.node)));
       const hopIds = s.hops.map(h => h[0]);
       svg.querySelectorAll(".dg-edge").forEach(e => e.classList.toggle("on", hopIds.includes(e.id)));
 

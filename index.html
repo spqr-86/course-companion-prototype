@@ -31,8 +31,8 @@
     </a>
     <nav class="side-nav" id="side-nav"></nav>
     <div class="side-foot">
-      <span class="proto-pill">Прототип 0.2</span>
-      <p>Материалы лекции 1.2 подготовлены заранее. Агент, импорт и связь с Орио ещё не подключены. Ваши правки и заявки хранятся только в этом браузере.</p>
+      <span class="proto-pill">Прототип 0.3 · демо</span>
+      <details><summary>О прототипе</summary><p>Материалы подготовлены заранее. Импорт, ответы и генерация имитируются. Правки и заявки хранятся только в этом браузере.</p></details>
       <button class="link-btn" type="button" data-reset-demo>Сбросить демо-правки</button>
     </div>
   </aside>
@@ -41,18 +41,18 @@
   <main id="view" class="view" tabindex="-1"></main>
 </div>
 
-<aside class="chat" id="chat" aria-label="Чат лекции" aria-hidden="true">
+<aside class="chat" id="chat" aria-label="Чат лекции" aria-hidden="true" inert>
   <div class="chat-head">
     <div>
       <div class="eyebrow">Чат лекции · Tools &amp; MCP</div>
-      <span class="demo-tag">Демо: ответы подготовлены заранее</span>
+      <span class="hint">Демо · ответы подготовлены заранее</span>
     </div>
     <button class="icon-btn" type="button" id="chat-close" aria-label="Закрыть чат">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
   </div>
   <div class="chat-log" id="chat-log" aria-live="polite"></div>
-  <div class="chat-suggest" id="chat-suggest"></div>
+  <details class="chat-prompts" id="chat-prompts" open><summary>Примеры вопросов</summary><div class="chat-suggest" id="chat-suggest"></div></details>
   <form class="chat-form" id="chat-form">
     <label class="sr" for="chat-input">Вопрос по лекции</label>
     <input id="chat-input" type="text" autocomplete="off" placeholder="Спросите о лекции…">
@@ -60,10 +60,18 @@
   </form>
 </aside>
 
+<div class="modal" id="toc-modal" hidden>
+  <div class="modal-card toc-card" role="dialog" aria-modal="true" aria-labelledby="toc-title">
+    <div class="modal-head"><h2 id="toc-title" tabindex="-1">Разделы конспекта</h2>
+      <button class="icon-btn" id="toc-close" type="button" aria-label="Закрыть оглавление">×</button></div>
+    <nav id="toc-mobile" aria-label="Оглавление конспекта"></nav>
+  </div>
+</div>
+
 <div class="modal" id="add-modal" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="add-title">
     <div class="modal-head">
-      <h2 id="add-title">Новый курс</h2>
+      <h2 id="add-title" tabindex="-1">Новый курс</h2>
       <button class="icon-btn" type="button" data-close-modal aria-label="Закрыть">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
@@ -93,6 +101,7 @@
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="data/content.js"></script>
+<script src="js/ui.js"></script>
 <script src="js/codevideo.js"></script>
 <script src="js/lab.js"></script>
 <script src="js/custom.js"></script>

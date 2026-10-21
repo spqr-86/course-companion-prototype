@@ -17,8 +17,8 @@
 
   const S = {
     data: null, notesMd: null, player: null, ytState: "idle", now: 0, pendingSeek: null,
-    lectureMounted: false, follow: true, slide: 0, panelTab: "transcript", cv: null, lab: null,
-    visited: new Set(), extraCourses: []
+    lectureMounted: false, follow: true, slide: 0, panelTab: "chapters", cv: null, lab: null,
+    mode: null, positions: {}, observers: [], visited: new Set(), extraCourses: []
   };
 
   /* ---------- Подсветка кода по строкам ---------- */
@@ -60,6 +60,11 @@
   function renderSide(route) {
     const cur = t => route === t || (t === "lecture-tools-mcp" && route.startsWith("tools-mcp")) ? ' aria-current="page"' : "";
     const lectures = C.course.modules.flatMap(m => m.lectures);
+    if (route === "library") {
+      $("#side-nav").innerHTML = `<a href="#library" aria-current="page">Библиотека</a>
+        <div class="group">Мои курсы</div><a href="#course-shad">Неделя агентов 2026</a>`;
+      return;
+    }
     $("#side-nav").innerHTML = `
       <a href="#library"${cur("library")}>Библиотека</a>
       <div class="group">Неделя агентов 2026</div>
@@ -76,6 +81,7 @@
     const r = (location.hash || "#library").slice(1) || "library";
     renderSide(r);
     closeSide();
+    if (!(r.startsWith("lecture") || r.startsWith("tools-mcp"))) closeChat();
     $$("[data-open-chat]").forEach(b => { b.hidden = !(r.startsWith("lecture") || r.startsWith("tools-mcp")); });
     if (r === "library") return renderLibrary();
     if (r === "course-shad") return renderCourse();
@@ -87,6 +93,8 @@
   function leaveLecture() {
     if (!S.lectureMounted) return;
     S.lectureMounted = false;
+    S.mode = null;
+    S.observers.forEach(io => io.disconnect()); S.observers = [];
     S.cv && S.cv.pause();
     S.lab && S.lab.stop();
     if (S.player && S.player.destroy) try { S.player.destroy(); } catch (e) { }
@@ -118,7 +126,7 @@
     <div>
       <div class="eyebrow">Библиотека</div>
       <h1 class="page-title">Мои курсы</h1>
-      <p class="lead">Каждый курс — отдельное пространство со своими лекциями, материалами, лабораториями и чатом.</p>
+      <p class="lead">Лекции, конспекты и практика — в одном месте.</p>
     </div>
     <button class="btn" type="button" data-add-course>+ Добавить курс</button>
   </div>
@@ -133,9 +141,9 @@
       <h2>Tools &amp; MCP</h2>
       <div class="resume-at"><b>${fmt(resume.t)}</b><span>${esc(resume.label)}</span></div>
       <div class="path-mini" aria-label="Маршрут по лекции">
-        <span class="on">Фрагмент видео</span><span>Объяснение</span><span>Code-video</span><span>Лаборатория</span>
+        <span class="on">Видео</span><span>Конспект</span><span>Анимация кода</span><span>Лаборатория</span>
       </div>
-      <span class="demo-tag">Демо-прогресс: место остановки задано вручную</span>
+      <span class="hint">Демо · место остановки задано для примера</span>
       <div class="actions">
         <a class="btn btn--primary" href="#lecture-tools-mcp" data-resume>${ICON_PLAY} Продолжить с ${fmt(resume.t)}</a>
         <a class="btn" href="#course-shad">Открыть курс</a>
@@ -181,9 +189,9 @@
     $("#add-modal").hidden = false;
     $("#add-build").hidden = true;
     $("#add-submit").disabled = false;
-    $("#add-name").focus();
+    window.CCUI.open($("#add-modal"), $("#add-title"), closeAdd);
   }
-  function closeAdd() { $("#add-modal").hidden = true; }
+  function closeAdd() { $("#add-modal").hidden = true; window.CCUI.close($("#add-modal")); }
   function setupAdd() {
     $$("[data-close-modal]").forEach(b => b.addEventListener("click", closeAdd));
     $("#add-modal").addEventListener("click", e => { if (e.target.id === "add-modal") closeAdd(); });
@@ -213,7 +221,7 @@
   }
 
   /* ---------- Курс ---------- */
-  const MAT = { video: "Видео", transcript: "Транскрипт", slides: "Слайды", notes: "Конспект", codevideo: "Code-video", lab: "Лаборатория" };
+  const MAT = { video: "Видео", transcript: "Транскрипт", slides: "Слайды", notes: "Конспект", codevideo: "Анимация кода", lab: "Лаборатория" };
   const MAT_STATE = { ready: "готово", building: "собирается · демо", planned: "в плане · демо", none: "нет" };
 
   function renderCourse(tab = "overview", keep = false) {
@@ -223,7 +231,6 @@
     const full = lectures.filter(l => Object.values(l.state).every(v => v === "ready")).length;
     const labReady = l => l.ready || X.labDone(l.code);
     const head = `
-<div class="page">
   <nav class="crumbs" aria-label="Путь"><a href="#library">Библиотека</a><span>/</span><span>${esc(k.title)}</span></nav>
   <div class="course-head">
     <div>
@@ -237,6 +244,7 @@
       <div><b>${k.labs.filter(labReady).length} / ${k.labs.length}</b><span>лабораторий готово</span></div>
     </div>
   </div>
+  <a class="btn btn--primary course-resume" href="#lecture-tools-mcp" data-resume-course>Продолжить · Tools &amp; MCP · ${fmt(C.moments.idempotency.t)}</a>
   <nav class="ctabs" aria-label="Разделы курса">
     <a href="#course-shad"${tab === "overview" ? ' aria-current="page"' : ""}>Обзор</a>
     <a href="#course-requests"${tab === "requests" ? ' aria-current="page"' : ""}>Заявки${X.activeCount() ? ` <span class="cnt">${X.activeCount()}</span>` : ""}</a>
@@ -264,11 +272,11 @@
           return `<span class="mat ${st}" title="${label}: ${MAT_STATE[st]}"><i></i>${label}${st === "building" || st === "planned" ? ` · ${MAT_STATE[st].split(" · ")[0]}` : ""}</span>`;
         }).join("");
         const body = `<span class="lcode">${l.code}</span>
-          <div><div class="t">${esc(l.title)}</div>
+          <div><div class="t">${l.token ? `<a class="lecture-title-link" href="#${l.token}">${esc(l.title)}</a>` : esc(l.title)}</div>
           ${l.speaker ? `<div class="s">${esc(l.speaker)} · ${l.duration}</div>` : `<div class="s">Сборка не запускалась: есть только конспект</div>`}
-          <div class="mats">${mats}</div></div>
-          ${l.token ? `<span class="go">Открыть лекцию →</span>` : `<span class="go dim">не собрана</span>`}`;
-        return l.token ? `<a class="lrow" href="#${l.token}">${body}</a>` : `<div class="lrow">${body}</div>`;
+          <details class="materials"><summary>Материалы · ${Object.values(l.state).filter(v => v === "ready").length} из 6 готовы</summary><div class="mats">${mats}</div></details></div>
+          ${l.token ? `<a class="go" href="#${l.token}">Открыть лекцию →</a>` : `<span class="go dim">не собрана</span>`}`;
+        return `<div class="lrow">${body}</div>`;
       }).join("")}
     </section>`).join("")}
   </div>
@@ -290,6 +298,7 @@
     }).join("")}
   </div>
 </div>`;
+    $("[data-resume-course]")?.addEventListener("click", () => { S.pendingSeek = C.moments.idempotency.t; });
     if (keep) { window.scrollTo(0, y); return; }
     $("#view").focus({ preventScroll: true });
     window.scrollTo(0, 0);
@@ -308,12 +317,14 @@
     const D = S.data, M = C.moments;
     const l = C.course.modules[0].lectures[1];
     $("#view").innerHTML = `
-<div class="page">
+<div class="page lecture-page">
   <nav class="crumbs" aria-label="Путь"><a href="#library">Библиотека</a><span>/</span><a href="#course-shad">${esc(C.course.title)}</a><span>/</span><span>Лекция 1.2</span></nav>
   <header class="lec-head">
     <div class="eyebrow">Модуль 1 · Основы агентов · Лекция 1.2</div>
     <h1 class="page-title">Tools &amp; MCP</h1>
-    <p class="lead" style="margin-top:4px">Как модель «пользуется» инструментами, каким должен быть хороший инструмент и зачем понадобился Model Context Protocol.</p>
+    <span class="lecture-brief">${esc(l.speaker)} · ${fmt(D.duration)} · ШАД</span>
+    <details class="lecture-about"><summary>О лекции и материалах</summary>
+    <p class="lead">Как модель «пользуется» инструментами, каким должен быть хороший инструмент и зачем понадобился Model Context Protocol.</p>
     <div class="lec-meta">
       <span>${esc(l.speaker)}, AI Lead, Яндекс Лавка</span>
       <span>Видео ${fmt(D.duration)}</span>
@@ -322,9 +333,10 @@
       <span>Субтитры: автоматические YouTube, ${D.segs.length} фрагментов</span>
       <a href="${C.video.url}" target="_blank" rel="noopener">Оригинал на YouTube ↗</a>
     </div>
+    </details>
   </header>
 
-  <nav class="route" aria-label="Маршрут по лекции">
+  <nav class="route" id="example-route" aria-label="Пример: безопасные повторы">
     <a href="#tools-mcp-video" data-route="video" data-seek="${M.idempotency.t}"><span class="n">1 · фрагмент видео</span><b>${fmt(M.idempotency.t)} Безопасные повторы</b><small>Лектор объясняет идемпотентность</small></a>
     <a href="#tools-mcp-notes" data-route="notes" data-notes="4"><span class="n">2 · объяснение</span><b>Конспект §4</b><small>Принципы проектирования инструментов</small></a>
     <a href="#tools-mcp-codevideo" data-route="codevideo"><span class="n">3 · code-video</span><b>Один ход агента</b><small>Запрос → модель → вызов → выполнение → ответ</small></a>
@@ -332,12 +344,14 @@
   </nav>
 
   <nav class="localnav" aria-label="Разделы лекции">
+    <div class="mode-links">
     <a href="#tools-mcp-video" data-sec="video">Видео</a>
     <a href="#tools-mcp-notes" data-sec="notes">Конспект</a>
     <a href="#tools-mcp-code" data-sec="code">Код</a>
-    <a href="#tools-mcp-codevideo" data-sec="codevideo">Code-video</a>
+    <a href="#tools-mcp-codevideo" data-sec="codevideo">Анимация кода</a>
     <a href="#tools-mcp-lab" data-sec="lab">Лаборатория</a>
-    <span class="spacer"></span>
+    </div>
+    <button class="btn btn--small" type="button" id="notes-jump" hidden aria-haspopup="dialog">Разделы</button>
     <button class="btn btn--small" type="button" data-open-chat>Чат лекции</button>
   </nav>
 
@@ -355,7 +369,7 @@
         const end = i + 1 < D.chapters.length ? D.chapters[i + 1].t : D.duration;
         return `<span style="flex:${(end - c.t).toFixed(1)}"></span>`;
       }).join("")}</div>
-      <div class="chapters" role="list">
+      <div class="chapters" id="lecture-chapters" role="list">
         ${D.chapters.map((c, i) => `
         <div class="chap" role="listitem" data-ch="${i}" data-seek="${c.t}" tabindex="0">
           <span class="tc">${fmt(c.t)}</span>
@@ -366,7 +380,8 @@
     </div>
     <aside class="panel" aria-label="Транскрипт и слайды">
       <div class="tabs" role="tablist">
-        <button type="button" role="tab" data-ptab="transcript" aria-selected="true">Транскрипт</button>
+        <button type="button" role="tab" data-ptab="chapters" aria-selected="true">Главы · ${D.chapters.length}</button>
+        <button type="button" role="tab" data-ptab="transcript" aria-selected="false">Транскрипт</button>
         <button type="button" role="tab" data-ptab="slides" aria-selected="false">Слайды · ${D.slides.length}</button>
       </div>
       <div class="ptab" data-pane="transcript">
@@ -374,13 +389,13 @@
           <div class="search">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
             <label class="sr" for="tr-q">Поиск по транскрипту</label>
-            <input id="tr-q" type="search" placeholder="Поиск по транскрипту: «тайм-аут», «MCP», «host»…" autocomplete="off">
+            <input id="tr-q" type="search" placeholder="Найти в транскрипте…" autocomplete="off">
           </div>
           <div class="tr-meta"><span class="tr-count">Автоматические субтитры YouTube</span>
             <label><input type="checkbox" id="tr-follow" checked> следовать за видео</label></div>
         </div>
       </div>
-      <div class="panel-body" id="panel-body"></div>
+      <div class="panel-body" id="panel-body" role="tabpanel"></div>
     </aside>
   </section>
 
@@ -399,7 +414,7 @@
   </section>
 
   <section id="sec-codevideo" aria-labelledby="cv-h">
-    <div class="section-h"><h2 id="cv-h">Code-video</h2><p>Цикл одного вызова: запрос → модель → вызов → выполнение → результат → ответ</p></div>
+    <div class="section-h"><h2 id="cv-h">Анимация кода</h2><p>Один ход агента — от запроса до результата</p></div>
     <div id="cv-root"></div>
     <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
       <button class="chip" type="button" data-seek="${M.cancelDemo.t}">${ICON_PLAY}<span class="tc">${fmt(M.cancelDemo.t)}</span> Этот же сценарий в видео</button>
@@ -419,6 +434,10 @@
 </div>`;
 
     S.lectureMounted = true;
+    S.chapterList = $("#lecture-chapters");
+    $("#panel-body").appendChild(S.chapterList);
+    // The example route belongs next to practice, not ahead of the first video frame.
+    $("#sec-lab").appendChild($("#example-route"));
     renderPanel();
     renderNotes();
     renderWalkthrough(0);
@@ -429,16 +448,39 @@
     updateNow(S.pendingSeek ?? 0, true);
     if (S.pendingSeek != null) { const t = S.pendingSeek; S.pendingSeek = null; seek(t, { scroll: false }); }
     $("#view").focus({ preventScroll: true });
-    if (r === "lecture-tools-mcp") window.scrollTo(0, 0); else requestAnimationFrame(() => scrollToSection(r));
+    showSection(r === "lecture-tools-mcp" ? "video" : r.replace("tools-mcp-", ""), { top: r === "lecture-tools-mcp" });
   }
 
   function scrollToSection(r) {
-    const sec = r.replace("tools-mcp-", "");
-    const el = $("#sec-" + sec);
-    if (r === "lecture-tools-mcp" || !el) { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    showSection(r === "lecture-tools-mcp" ? "video" : r.replace("tools-mcp-", ""));
+  }
+
+  function showSection(sec, { top = false } = {}) {
+    if (!["video", "notes", "code", "codevideo", "lab"].includes(sec)) sec = "video";
+    const same = S.mode === sec;
+    if (!same && $("#toast")) $("#toast").hidden = true;
+    if (S.mode && S.mode !== sec) S.positions[S.mode] = window.scrollY;
+    if (S.mode === "codevideo" && sec !== S.mode) S.cv?.pause();
+    if (S.mode === "lab" && sec !== S.mode) S.lab?.stop();
+    S.mode = sec;
+    ["video", "notes", "code", "codevideo", "lab"].forEach(k => { $("#sec-" + k).hidden = k !== sec; });
+    $$(".localnav a").forEach(a => {
+      const on = a.dataset.sec === sec;
+      a.classList.toggle("on", on);
+      if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    $("#notes-jump").hidden = sec !== "notes";
+    const nav = $(".localnav"), scroller = $(".mode-links"), active = $(".localnav a.on");
+    const ar = active.getBoundingClientRect(), nr = scroller.getBoundingClientRect();
+    if (ar.left < nr.left || ar.right > nr.right) scroller.scrollLeft += ar.left - nr.left - (nr.width - ar.width) / 2;
+    const hash = "#tools-mcp-" + sec;
+    if (location.hash !== hash) history.replaceState(null, "", hash);
     S.visited.add(sec);
     markRoute();
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    // A sticky nav's viewport rectangle follows scrolling; use the preceding header
+    // to find the fixed document position when opening a mode for the first time.
+    const start = $(".lec-head").getBoundingClientRect().bottom + scrollY + parseFloat(getComputedStyle(nav).marginTop);
+    window.scrollTo({ top: top ? 0 : same ? scrollY : S.positions[sec] ?? Math.max(0, start - (innerWidth <= 860 ? 55 : 0)), behavior: "instant" });
   }
 
   function markRoute() { $$(".route a").forEach(a => a.classList.toggle("done", S.visited.has(a.dataset.route))); }
@@ -498,6 +540,7 @@
     S.visited.add("video");
     markRoute();
     if (scroll) {
+      showSection("video");
       const p = $(".player");
       const r = p.getBoundingClientRect();
       if (r.top < 0 || r.bottom > window.innerHeight) p.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -538,7 +581,9 @@
   function renderPanel() {
     $$("[data-ptab]").forEach(b => b.setAttribute("aria-selected", b.dataset.ptab === S.panelTab));
     $('[data-pane="transcript"]').hidden = S.panelTab !== "transcript";
-    if (S.panelTab === "transcript") renderTranscript($("#tr-q").value.trim());
+    if (S.chapterList?.isConnected) S.chapterList.remove();
+    if (S.panelTab === "chapters") { $("#panel-body").replaceChildren(S.chapterList); updateNow(S.now, true); }
+    else if (S.panelTab === "transcript") renderTranscript($("#tr-q").value.trim());
     else renderSlides();
   }
 
@@ -694,21 +739,29 @@
 
     X.decorateNotes(el);
     $("#toc").innerHTML = `<div class="eyebrow">Разделы</div>` + toc.map(t => `<a href="#tools-mcp-notes" data-notes="${t.n}">${t.n}. ${esc(t.title)}</a>`).join("");
+    $("#toc-mobile").innerHTML = toc.map(t => `<a href="#tools-mcp-notes" data-notes="${t.n}">${t.n}. ${esc(t.title)}</a>`).join("");
     if ("IntersectionObserver" in window) {
       const io = new IntersectionObserver(es => {
         es.forEach(e => {
           if (!e.isIntersecting) return;
           const n = e.target.id.slice(2);
           $$("#toc a").forEach(a => a.classList.toggle("on", a.dataset.notes === n));
+          $("#notes-jump").textContent = `§${n} · Разделы`;
+          $$("#toc-mobile a").forEach(a => {
+            if (a.dataset.notes === n) a.setAttribute("aria-current", "location");
+            else a.removeAttribute("aria-current");
+          });
         });
       }, { rootMargin: "-20% 0px -70% 0px" });
       $$("h2[id^='n-']", el).forEach(h => io.observe(h));
+      S.observers.push(io);
     }
   }
 
   function goNotes(n) {
     const h = $("#n-" + n);
     if (!h) return;
+    showSection("notes");
     S.visited.add("notes");
     markRoute();
     h.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -776,15 +829,7 @@
     S.viewBound = true;
     $("#tr-q").addEventListener("input", e => renderTranscript(e.target.value.trim()));
     $("#tr-follow").addEventListener("change", e => { S.follow = e.target.checked; });
-    // локальная навигация подсвечивает видимый раздел
-    if ("IntersectionObserver" in window) {
-      const io = new IntersectionObserver(es => es.forEach(en => {
-        if (!en.isIntersecting) return;
-        const sec = en.target.id.replace("sec-", "");
-        $$(".localnav a").forEach(a => a.classList.toggle("on", a.dataset.sec === sec));
-      }), { rootMargin: "-30% 0px -60% 0px" });
-      ["video", "notes", "code", "codevideo", "lab"].forEach(s => { const el = $("#sec-" + s); if (el) io.observe(el); });
-    }
+    $("#notes-jump").addEventListener("click", () => window.CCUI.open($("#toc-modal"), $("#toc-title"), closeToc));
     $$("[data-open-chat]", $("#view")).forEach(b => b.addEventListener("click", openChat));
   }
 
@@ -801,16 +846,17 @@
   const MSGS = [];
   function botAnswer(tag, q, a, refs, sec, refsHtml) {
     const id = MSGS.push({ q, a, refs, sec }) - 1;
-    return `<div class="bubble bot"><span class="demo-tag">${tag}</span><span>${esc(a)}</span>${refsHtml ? `<div class="refs">${refsHtml}</div>` : ""}
+    return `<div class="bubble bot"><span>${esc(a)}</span>${refsHtml ? `<div class="refs">${refsHtml}</div>` : ""}
       <div class="bubble-act"><button class="link-btn" type="button" data-pin="${id}">+ Добавить в конспект${sec ? ` §${sec}` : ""}</button></div></div>`;
   }
   function setupChat() {
     const log = $("#chat-log");
-    log.innerHTML = `<div class="bubble bot"><span class="demo-tag">Демо</span><span>Я отвечаю по материалам этой лекции и даю ссылки на моменты видео, разделы конспекта и лабораторию. В прототипе ответы подготовлены заранее — выберите вопрос ниже или нажмите «+» у абзаца конспекта.</span></div>`;
+    log.innerHTML = `<div class="bubble bot"><span>Выберите пример вопроса или нажмите «+» у абзаца. Ответ можно сохранить в конспект вместе со ссылками на материалы.</span></div>`;
     const SCENE_Q = "Собери лабораторию про частичный сбой транзакции";
     $("#chat-suggest").innerHTML = C.chat.map((c, i) => `<button type="button" data-q="${i}">${esc(c.q)}</button>`).join("") +
       `<button type="button" data-q-scene>${SCENE_Q}</button>`;
     const ask = (q, a) => {
+      $("#chat-prompts").open = false;
       log.insertAdjacentHTML("beforeend", `<div class="bubble me">${q}</div>`);
       log.insertAdjacentHTML("beforeend", a);
       log.scrollTop = log.scrollHeight;
@@ -854,8 +900,8 @@
       goLecture(() => {
         if (s) seek(+s.dataset.refSeek);
         if (n) goNotes(+n.dataset.refNotes);
-        if (cv) { S.cv.goStep(+cv.dataset.refCv); $("#sec-codevideo").scrollIntoView({ behavior: "smooth" }); }
-        if (lab) { S.lab.setScenario(lab.dataset.refLab, { compare: true }); $("#sec-lab").scrollIntoView({ behavior: "smooth" }); }
+        if (cv) { showSection("codevideo"); S.cv.goStep(+cv.dataset.refCv); }
+        if (lab) { showSection("lab"); S.lab.setScenario(lab.dataset.refLab, { compare: true }); }
       });
     });
     $("#chat-close").addEventListener("click", closeChat);
@@ -866,16 +912,65 @@
     location.hash = "lecture-tools-mcp";
     const wait = setInterval(() => { if (S.lectureMounted) { clearInterval(wait); setTimeout(cb, 250); } }, 100);
   }
-  function openChat() { const c = $("#chat"); c.classList.add("open"); c.setAttribute("aria-hidden", "false"); setTimeout(() => $("#chat-input").focus(), 250); }
-  function closeChat() { const c = $("#chat"); c.classList.remove("open"); c.setAttribute("aria-hidden", "true"); }
+  let chatOpener;
+  function openChat() {
+    const c = $("#chat");
+    if (c.classList.contains("open")) return;
+    chatOpener = document.activeElement;
+    if ($("#toast")) $("#toast").hidden = true;
+    c.inert = false; c.classList.add("open"); c.setAttribute("aria-hidden", "false");
+    document.body.classList.add("chat-open");
+    if (innerWidth < 1100) {
+      c.setAttribute("role", "dialog"); c.setAttribute("aria-modal", "true");
+      window.CCUI.open(c, $("#chat-input"), closeChat);
+      $("#chat-close").setAttribute("aria-label", "Вернуться к лекции");
+    } else $("#chat-input").focus({ preventScroll: true });
+  }
+  function closeChat() {
+    const c = $("#chat"), wasOpen = c.classList.contains("open");
+    if (!wasOpen) return;
+    window.CCUI.close(c);
+    c.classList.remove("open"); c.setAttribute("aria-hidden", "true"); c.inert = true;
+    c.removeAttribute("role"); c.removeAttribute("aria-modal");
+    document.body.classList.remove("chat-open");
+    if (chatOpener?.isConnected && !chatOpener.closest("[inert]")) chatOpener.focus({ preventScroll: true });
+  }
+  function closeToc() { $("#toc-modal").hidden = true; window.CCUI.close($("#toc-modal")); }
+  $("#toc-close").addEventListener("click", closeToc);
+  $("#toc-modal").addEventListener("click", e => { if (e.target.id === "toc-modal") closeToc(); });
+  $("#toc-mobile").addEventListener("click", e => {
+    const link = e.target.closest("[data-notes]");
+    if (link) { e.preventDefault(); closeToc(); goNotes(+link.dataset.notes); }
+  });
 
   /* ---------- Мобильное меню ---------- */
-  function openSide() { $("#side").classList.add("open"); $("#scrim").hidden = false; $("#menu-btn").setAttribute("aria-expanded", "true"); }
-  function closeSide() { $("#side").classList.remove("open"); $("#scrim").hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); }
+  function openSide() {
+    $("#side").classList.add("open"); $("#side").inert = false;
+    $("#scrim").hidden = false; $("#menu-btn").setAttribute("aria-expanded", "true");
+    window.CCUI.open($("#side"), $("#side a"), closeSide);
+    // The backdrop remains a dismissal target.
+    $("#scrim").inert = false;
+  }
+  function closeSide() {
+    window.CCUI.close($("#side"));
+    $("#side").classList.remove("open"); $("#side").inert = innerWidth <= 860;
+    $("#scrim").hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false");
+  }
+  let layoutWidth = innerWidth;
+  window.addEventListener("resize", () => {
+    if (layoutWidth === innerWidth) return;
+    const wasMobile = layoutWidth <= 640;
+    layoutWidth = innerWidth;
+    closeChat(); closeSide();
+    if (wasMobile !== (innerWidth <= 640)) {
+      $$(".cv-source, .lab-options, .lab-out").forEach(el => { el.open = innerWidth > 640; });
+    }
+    if (S.lectureMounted) showSection(S.mode);
+  });
 
   $("#menu-btn").addEventListener("click", () => $("#side").classList.contains("open") ? closeSide() : openSide());
   $("#scrim").addEventListener("click", closeSide);
-  window.CCApp = { data: () => S.data, now: () => S.now, chapterAt, seek, goNotes, openChat, closeChat, goLecture };
+  window.CCApp = { data: () => S.data, now: () => S.now, chapterAt, seek, goNotes, openChat, closeChat, goLecture, showSection };
   document.addEventListener("cc:changed", () => {
     const r = (location.hash || "#library").slice(1) || "library";
     renderSide(r);
