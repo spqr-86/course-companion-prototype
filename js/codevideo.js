@@ -78,6 +78,20 @@ def cancel_booking(booking_id: str) -> str:
       text: "Модель читает ToolMessage и пишет ответ без tool_calls. route_after_llm возвращает \"end\", граф завершается. Текст ответа взят из вывода ноутбука." }
   ];
 
+  // Необязательный вопрос перед шагом «Выполнение»: не блокирует ролик, показывается один раз за сессию.
+  const ASK_STEP = 4, ASK_WAIT = 10000;
+  const ASK = {
+    q: "Где выполняется cancel_booking?",
+    opts: [["model", "в модели"], ["tools", "в узле tools"], ["provider", "у провайдера модели"]],
+    right: "tools",
+    explain: {
+      model: "Не в модели: она только вернула tool_call с именем функции и аргументами. Код функции она не видит и не запускает.",
+      tools: "Верно: ToolNode в узле tools вызывает функцию в коде агента. Модель лишь просит вызов.",
+      provider: "Не у провайдера: до него доходят только схемы и сообщения. Функция живёт в коде агента, её запускает узел tools (ToolNode)."
+    }
+  };
+  let askDone = false; // повторно в той же сессии не спрашиваем
+
   const COLORS = { user: "--c-user", model: "--c-model", call: "--c-call", exec: "--c-exec", result: "--c-result" };
 
   const SVG = `
@@ -137,6 +151,14 @@ def cancel_booking(booking_id: str) -> str:
     </div></details>
   </div>
   <div class="cv-caption" aria-live="polite"><span class="step-n"></span><h3></h3><p></p></div>
+  <div class="cv-ask" role="group" aria-label="Вопрос по ходу ролика" hidden>
+    <b class="cv-ask-q">${ASK.q}</b>
+    <span class="cv-ask-note">Необязательно: ролик пойдёт дальше сам.</span>
+    <div class="cv-ask-opts">${ASK.opts.map(([v, l]) => `<button class="btn btn--small" type="button" data-ask="${v}">${l}</button>`).join("")}
+      <button class="btn btn--small btn--ghost" type="button" data-ask-skip>Пропустить</button></div>
+    <p class="cv-ask-explain" hidden></p>
+    <button class="btn btn--small btn--primary" type="button" data-ask-continue hidden>Продолжить с шага «Выполнение»</button>
+  </div>
   <div class="cv-controls">
     <div class="cv-buttons">
       <button class="btn btn--small" type="button" data-cv="prev" aria-label="Предыдущий шаг"><svg viewBox="0 0 16 16"><path d="M4 3h2v10H4zM13 3v10L7 8z"/></svg></button>
@@ -245,7 +267,10 @@ def cancel_booking(booking_id: str) -> str:
       }
 
       if (i !== curStep) {
+        const prev = curStep;
         curStep = i;
+        if (!ask.hidden && i !== ASK_STEP) closeAsk(false); // ушли с шага вручную: вопрос снят
+        if (i === ASK_STEP && !askDone && prev !== -1) openAsk();
         q(".step-n").textContent = `${i} / ${STEPS.length - 1}`;
         q(".cv-caption h3").textContent = s.title;
         q(".cv-caption p").textContent = s.text;
@@ -259,6 +284,38 @@ def cancel_booking(booking_id: str) -> str:
       q(".cv-time").textContent = `${fmt(t)} / ${fmt(total)}`;
       q(".tl-track").setAttribute("aria-valuenow", t.toFixed(1));
     }
+
+    // Вопрос перед «Выполнением»: ролик встаёт на границе шага и сам идёт дальше через ASK_WAIT.
+    const ask = q(".cv-ask");
+    let askTimer = 0, askResume = false;
+    function closeAsk(resume) {
+      clearTimeout(askTimer); askTimer = 0;
+      ask.hidden = true;
+      if (resume && askResume) setPlaying(true);
+      askResume = false;
+    }
+    function openAsk() {
+      askDone = true;
+      askResume = playing;
+      if (playing) { t = starts[ASK_STEP] + .001; setPlaying(false); }
+      ask.querySelector(".cv-ask-explain").hidden = true;
+      ask.querySelector("[data-ask-continue]").hidden = true;
+      ask.querySelectorAll("[data-ask], [data-ask-skip]").forEach(b => { b.hidden = false; });
+      ask.querySelector(".cv-ask-note").hidden = false;
+      ask.hidden = false;
+      if (askResume) askTimer = setTimeout(() => closeAsk(true), ASK_WAIT);
+    }
+    ask.querySelector("[data-ask-skip]").addEventListener("click", () => closeAsk(true));
+    ask.querySelectorAll("[data-ask]").forEach(b => b.addEventListener("click", () => {
+      clearTimeout(askTimer); askTimer = 0;
+      const ex = ask.querySelector(".cv-ask-explain");
+      ex.textContent = ASK.explain[b.dataset.ask];
+      ex.hidden = false;
+      ask.querySelectorAll("[data-ask], [data-ask-skip]").forEach(x => { x.hidden = true; });
+      ask.querySelector(".cv-ask-note").hidden = true;
+      ask.querySelector("[data-ask-continue]").hidden = false;
+    }));
+    ask.querySelector("[data-ask-continue]").addEventListener("click", () => closeAsk(true));
 
     function setPlaying(v) {
       playing = v;

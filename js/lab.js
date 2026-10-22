@@ -113,11 +113,24 @@
   function mount(root) {
     const P = { scenario: "lost", key: false, compare: true, losses: 1, speed: 1 };
     let lanes = [], pos = 0, total = 0, timer = null, outTab = "log", prevVals = {};
+    // Режим «Проверить себя»: прогноз → запуск → объяснение → новое условие. Данные — в CCLabChecks.
+    const CK = (window.CCLabChecks || {}).L01, Ln = window.Learn;
+    const hasCheck = !!(CK && Ln);
+    const LK = Ln ? Ln.key("shad", "L01") : "shad:L01";
+    const M = { mode: "explore", pred: null, revealed: false, actual: "", explainOk: false, transferOk: false };
 
     root.innerHTML = `
 <details class="sim-info"><summary>Учебная симуляция · как устроен пример</summary><p>Модель, сеть и база смоделированы в браузере. Логика cancel_booking повторяет ноутбук. Ключ идемпотентности добавлен для сравнения.</p></details>
 <div class="lab">
   <div class="lab-top"><span class="dot"></span><span class="lab-title"></span></div>
+  ${hasCheck ? `<div class="lab-modebar"><div class="seg-ctl" data-group="mode" role="group" aria-label="Режим лаборатории">
+      <button type="button" data-v="explore" aria-pressed="true">Исследовать</button>
+      <button type="button" data-v="check" aria-pressed="false">Проверить себя</button></div></div>
+    <div class="lab-predict" hidden>
+      <p class="check-q">${esc(CK.predict.question)}</p>
+      <div class="pred-opts" role="group" aria-label="Ваш прогноз">${CK.predict.options.map(o => `<button type="button" class="btn btn--small" data-pred="${esc(o)}" aria-pressed="false">${esc(o)}</button>`).join("")}</div>
+      <p class="pred-result" aria-live="polite" hidden></p>
+    </div>` : ""}
   <div class="lab-body">
     <div class="lab-main">
       <div class="lab-ctl">
@@ -170,7 +183,26 @@ def cancel_booking_idempotent(booking_id, key):
       </details>
     </div>
   </div>
-</div>`;
+  ${hasCheck ? `<div class="lab-check" hidden>
+    <div class="lab-explain" hidden>
+      <p class="check-q">${esc(CK.explain.question)}</p>
+      <textarea rows="4" aria-label="Объяснение расхождения между прогонами"></textarea>
+      <div class="u-actions"><button class="btn btn--small btn--primary" type="button" data-explain-submit>Проверить</button></div>
+      <div class="explain-result" aria-live="polite"></div>
+    </div>
+    <div class="lab-transfer" hidden>
+      <p class="check-q">${esc(CK.transfer.question)}</p>
+      <div class="u-actions"><input type="text" inputmode="numeric" class="transfer-answer" aria-label="Число возвратов">
+        <button class="btn btn--small btn--primary" type="button" data-transfer-check>Проверить ответ</button>
+        <button class="btn btn--small" type="button" data-transfer-run>Проверить запуском</button></div>
+      <p class="transfer-result" aria-live="polite"></p>
+    </div>
+  </div>` : ""}
+</div>
+${hasCheck ? `<section class="lab-note" aria-label="Мой вывод" hidden>
+  <div class="u-head"><b>Мой вывод</b><span class="uorigin">моя заметка</span></div>
+  <p class="lab-note-text"></p>
+</section>` : ""}`;
 
     const q = s => root.querySelector(s);
     q(".lab-body").prepend(q(".lab-side"));
@@ -209,11 +241,21 @@ def cancel_booking_idempotent(booking_id, key):
 
     function render() {
       const results = lanes.map(laneAt);
+      // Первый прогон в режиме проверки с прогнозом снимает маску и запоминает, что вышло.
+      if (hasCheck && M.mode === "check" && !M.revealed && M.pred && P.losses === 1 && results.length === 2 && results.every(r => r.done)) {
+        M.revealed = true;
+        M.actual = results.map(r => r.s.refunds.length).join(" и ");
+      }
+      const hide = hasCheck && M.mode === "check" && !M.revealed;
+      const mk = hide ? " masked" : "";
+      const ah = hide ? ' aria-hidden="true"' : "";
       root.style.setProperty("--lanes", lanes.length);
       q(".lab-title").textContent = `lab · cancel_booking · ${P.scenario}${P.scenario === "lost" ? ` ×${P.losses}` : ""} · ${P.compare ? "сравнение: без ключа | с ключом" : (P.key ? "с ключом" : "без ключа")}`;
       q(".pos").textContent = `шаг ${pos} из ${total}`;
       q(".scenario-description").textContent = SCEN[P.scenario].desc;
       q(".lab-options > summary").textContent = `Условия · ${P.compare ? "сравнить оба варианта" : P.key ? "с ключом" : "без ключа"}${P.scenario === "lost" ? ` · потерь: ${P.losses}` : ""}`;
+      q(".lab-comparison").classList.toggle("masked", hide);
+      q(".lab-comparison").toggleAttribute("aria-hidden", hide);
       q(".lab-comparison").innerHTML = `<table><caption class="sr">Сравнение результатов</caption>
         <thead><tr><th scope="col">Результат</th>${lanes.map(l => `<th scope="col">${l.name}</th>`).join("")}</tr></thead>
         <tbody>${[
@@ -231,12 +273,12 @@ def cancel_booking_idempotent(booking_id, key):
         const v = done ? verdict(s, P.scenario) : null;
         return `<div class="lane">
   <div class="lane-h"><b>${l.name}</b><span class="key-pill${l.key ? " on" : ""}">${l.key ? KEY : "ключа нет"}</span></div>
-  <div class="board" aria-label="Состояние базы">
+  <div class="board${mk}" aria-label="Состояние базы"${ah}>
     <div class="board-row"><div><div class="lbl">Бронь BKG-123 · Jane Doe</div><div class="val">${s.status === "cancelled" ? "CANCELLED" : "CONFIRMED"}</div></div></div>
     <div class="board-row"><div><div class="lbl">Рейс AY001 · HEL → AMS · 22.02 09:30</div><div class="val">мест в продаже</div></div>${flap(s.seats, s.seats > 4, li + "s")}</div>
     <div class="board-row"><div><div class="lbl">Возвраты Jane Doe</div><div class="val">${s.refunds.length ? s.refunds.map(r => r + " $").join(" + ") : "нет"}</div></div>${flap(refunded, refunded > PRICE, li + "r")}</div>
   </div>
-  <div class="counters">
+  <div class="counters${mk}"${ah}>
     <div class="counter"><b>${s.sent}</b><span>вызовов отправлено</span></div>
     <div class="counter exec${s.exec > 1 ? " bad" : ""}"><b>${s.exec}</b><span>фактических выполнений</span></div>
     <div class="counter${refunded > PRICE ? " bad" : ""}"><b>${refunded} $</b><span>возвращено</span></div>
@@ -244,7 +286,7 @@ def cancel_booking_idempotent(booking_id, key):
   <div class="now-step">${lastLog
     ? `<span class="ph ${lastLog.ph}">${lastLog.i}. ${PHASE[lastLog.ph]}</span><span>${esc(lastLog.text)}</span>`
     : `<span class="ph done">Готово к запуску</span><span>Нажмите «Шаг», чтобы пройти сценарий по одному событию, или «Запуск».</span>`}</div>
-  ${v ? `<div class="verdict ${v.good ? "good" : "bad"}"><b>${esc(v.title)}</b>${esc(v.text)}</div>` : ""}
+  ${v ? `<div class="verdict ${v.good ? "good" : "bad"}${mk}"${ah}><b>${esc(v.title)}</b>${esc(v.text)}</div>` : ""}
 </div>`;
       }).join("");
 
@@ -264,9 +306,13 @@ def cancel_booking_idempotent(booking_id, key):
             : `<p class="empty">Сообщений пока нет.</p>`}</div>`).join("")}</div>`;
       }
 
+      const needPred = hide && !M.pred;
+      runBtn.disabled = needPred && !timer;
+      q(".lab-out").classList.toggle("masked", hide);
       runBtn.querySelector("span").textContent = timer ? "Пауза" : (pos >= total ? "Заново" : "Запуск");
       runBtn.querySelector("svg").innerHTML = timer ? '<path d="M4 2h3v12H4zM9 2h3v12H9z"/>' : '<path d="M4 2l10 6-10 6z"/>';
-      q('[data-lab="step"]').disabled = pos >= total;
+      q('[data-lab="step"]').disabled = pos >= total || needPred;
+      syncCheck();
     }
 
     function syncControls() {
@@ -278,7 +324,7 @@ def cancel_booking_idempotent(booking_id, key):
       q(".losses-group").hidden = P.scenario !== "lost";
     }
 
-    function step() { if (pos < total) { pos++; render(); } if (pos >= total) stop(); }
+    function step() { if (pos < total) { pos++; if (pos >= total) stop(); render(); } }
     function stop() { if (timer) { clearInterval(timer); timer = null; } }
     function run() {
       if (timer) { stop(); render(); return; }
@@ -295,7 +341,7 @@ def cancel_booking_idempotent(booking_id, key):
       if (timer) { clearInterval(timer); timer = setInterval(step, 1100 / P.speed); }
     });
     root.querySelectorAll("[data-scen]").forEach(b => b.addEventListener("click", () => { P.scenario = b.dataset.scen; rebuild(); }));
-    root.querySelectorAll("[data-group] button").forEach(b => b.addEventListener("click", () => {
+    root.querySelectorAll("[data-group]:not([data-group=mode]) button").forEach(b => b.addEventListener("click", () => {
       const g = b.closest("[data-group]").dataset.group, v = +b.dataset.v;
       if (g === "compare") P.compare = !!v;
       if (g === "key") P.key = !!v;
@@ -304,10 +350,103 @@ def cancel_booking_idempotent(booking_id, key):
     }));
     root.querySelectorAll("[data-out]").forEach(b => b.addEventListener("click", () => { outTab = b.dataset.out; render(); }));
 
+    // ---------- Режим «Проверить себя» ----------
+    const touch = () => { if (Ln) Ln.touch({ lecture: "shad", unit: "L01", kind: "lab", route: "tools-mcp-lab", mode: M.mode }); };
+    const ta = hasCheck ? q(".lab-explain textarea") : null;
+    let draftTimer = 0;
+
+    function syncCheck() {
+      if (!hasCheck) return;
+      const on = M.mode === "check";
+      q(".lab").classList.toggle("checking", on);
+      root.querySelectorAll('[data-group="mode"] button').forEach(b => b.setAttribute("aria-pressed", b.dataset.v === M.mode));
+      q(".lab-predict").hidden = !on;
+      q(".lab-check").hidden = !(on && M.revealed);
+      q(".lab-explain").hidden = !(on && M.revealed);
+      q(".lab-transfer").hidden = !(on && M.explainOk);
+      root.querySelectorAll("[data-pred]").forEach(b => {
+        b.setAttribute("aria-pressed", b.dataset.pred === M.pred);
+        b.disabled = M.revealed;
+      });
+      const pr = q(".pred-result");
+      pr.hidden = !M.revealed;
+      if (M.revealed) pr.textContent = `Ваш прогноз: ${M.pred} · вышло: ${M.actual}`;
+      const note = (Ln.state().understood || {})[LK] || "";
+      q(".lab-note").hidden = !note;
+      q(".lab-note-text").textContent = note;
+    }
+
+    function setMode(m) {
+      if (!hasCheck || M.mode === m) return;
+      M.mode = m;
+      // Условия проверки ставим, пока маска не снята. Введённое не сбрасываем.
+      if (m === "check" && !M.revealed) { P.scenario = "lost"; P.compare = true; P.losses = 1; rebuild(); }
+      else render();
+      touch();
+    }
+
+    function maybeDone() { if (M.explainOk && M.transferOk) Ln.setStatus(LK, "self"); }
+    function accept(text) {
+      clearTimeout(draftTimer); draftTimer = 0;
+      const u = Ln.state().understood;
+      u[LK] = text;
+      delete u[LK + ":draft"];
+      Ln.save({ understood: u });
+      M.explainOk = true;
+      syncCheck();
+      maybeDone();
+    }
+    function flushDraft() {
+      clearTimeout(draftTimer); draftTimer = 0;
+      const u = Ln.state().understood;
+      if (ta.value === (u[LK] || "") || ta.value === (u[LK + ":draft"] || "")) return;
+      if (ta.value) u[LK + ":draft"] = ta.value; else delete u[LK + ":draft"];
+      Ln.save({ understood: u });
+    }
+    let onHide = null;
+    if (hasCheck) {
+      const u0 = Ln.state().understood || {};
+      ta.value = u0[LK + ":draft"] || u0[LK] || "";
+      root.querySelectorAll('[data-group="mode"] button').forEach(b => b.addEventListener("click", () => setMode(b.dataset.v)));
+      root.querySelectorAll("[data-pred]").forEach(b => b.addEventListener("click", () => { M.pred = b.dataset.pred; render(); }));
+      ta.addEventListener("input", () => { clearTimeout(draftTimer); draftTimer = setTimeout(flushDraft, 400); });
+      ta.addEventListener("blur", flushDraft);
+      onHide = flushDraft;
+      addEventListener("pagehide", onHide);
+      q("[data-explain-submit]").addEventListener("click", () => {
+        const r = Ln.grade(ta.value, CK.explain);
+        r.hint = CK.explain.hint;
+        const res = q(".explain-result");
+        const dispute = () => {
+          const d = Ln.state().disputed; d[LK] = true; Ln.save({ disputed: d });
+          window.LearnUI.renderVerdict(res, { ok: true, disputed: true });
+          accept(ta.value);
+        };
+        window.LearnUI.renderVerdict(res, r, { onDispute: dispute });
+        if (r.ok) accept(ta.value);
+      });
+      q("[data-transfer-check]").addEventListener("click", () => {
+        const ok = Ln.checkNumber(q(".transfer-answer").value, CK.transfer.expected, 0);
+        const res = q(".transfer-result");
+        res.textContent = ok
+          ? `Верно: ${CK.transfer.expected} возврата. Каждый повтор без ключа выполняет отмену заново, к первому выполнению добавляются повторы. Проверьте запуском.`
+          : "Не сходится. Подумайте: без ключа каждый повтор снова выполняет отмену, а первое выполнение уже было.";
+        res.dataset.ok = ok;
+        if (ok) { M.transferOk = true; maybeDone(); }
+      });
+      q("[data-transfer-run]").addEventListener("click", () => {
+        P.scenario = "lost"; P.compare = true; P.losses = CK.transfer.losses;
+        rebuild();
+        run();
+      });
+    }
+
     rebuild();
     return {
       setScenario(name, opts = {}) { P.scenario = name; Object.assign(P, opts); rebuild(); },
-      stop
+      stop,
+      enter: touch, // вход в лабораторию: запоминаем место для «Продолжить разбор»
+      dispose() { stop(); if (onHide) removeEventListener("pagehide", onHide); }
     };
   }
 

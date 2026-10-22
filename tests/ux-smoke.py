@@ -63,6 +63,95 @@ with sync_playwright() as p:
         check(prefix + " no Javascript errors", not errors)
         context.close()
 
+    # Заявки на генерацию — в закрытом архиве; лаборатории и code-video остаются видны.
+    BADGE = "Уходит в архив, в MVP-0 нет"
+    for width in (390, 1440):
+        context = browser.new_context(viewport={"width": width, "height": 844})
+        context.add_init_script(ONBOARDED)
+        page = context.new_page()
+        prefix = f"archive {width}"
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(BASE + "#tools-mcp-notes", wait_until="networkidle")
+        page.wait_for_timeout(1500)
+        if width == 390:
+            page.locator("#menu-btn").click()
+        arch = page.locator("#side-nav details.side-archive")
+        check(prefix + " side archive closed by default", arch.count() == 1 and not arch.evaluate("d => d.open"))
+        check(prefix + " side archive holds requests", arch.locator("a[href='#course-requests']").count() == 1)
+        check(prefix + " badge text verbatim", BADGE in arch.locator("summary").inner_text())
+        check(prefix + " requests link hidden while closed", not arch.locator("a[href='#course-requests']").is_visible())
+        check(prefix + " labs group visible", page.locator("#side-nav a[href='#tools-mcp-lab']").is_visible())
+        if width == 390:
+            page.evaluate("document.querySelector('#scrim').click()")
+        check(prefix + " localnav lab visible", page.locator(".localnav [data-sec=lab]").is_visible())
+        page.evaluate("location.hash='course-shad'")
+        page.wait_for_timeout(500)
+        carch = page.locator(".ctabs details.side-archive")
+        check(prefix + " course archive closed", carch.count() == 1 and not carch.evaluate("d => d.open"))
+        check(prefix + " course badge verbatim", BADGE in carch.locator("summary").inner_text())
+        check(prefix + " no Javascript errors", not errors)
+        context.close()
+
+    # Code-video: необязательный вопрос перед шагом «Выполнение».
+    context = browser.new_context(viewport={"width": 1024, "height": 800})
+    context.add_init_script(ONBOARDED)
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(BASE + "#tools-mcp-codevideo", wait_until="networkidle")
+    page.wait_for_timeout(1500)
+    ask = page.locator(".cv-ask")
+    check("cv-ask hidden at start", not ask.is_visible())
+    page.locator("[data-step='3']").click()
+    check("cv-ask not before step 4", not ask.is_visible())
+    page.locator("#cv-speed").select_option("2")
+    page.locator("[data-cv=play]").click()
+    try:
+        ask.wait_for(state="visible", timeout=9000)
+    except Exception:
+        pass
+    check("cv-ask visible at step 4", ask.is_visible())
+    check("cv-ask question verbatim", "Где выполняется cancel_booking?" in ask.inner_text())
+    check("cv-ask paused on step 3/4 border", page.locator(".cv-caption .step-n").inner_text() == "4 / 6")
+    ask.locator("[data-ask-skip]").click()
+    check("cv-ask hidden after skip", not ask.is_visible())
+    t0 = page.locator(".cv-time").inner_text()
+    page.wait_for_timeout(1500)
+    check("cv playback continues after skip", page.locator(".cv-time").inner_text() != t0)
+    page.locator("[data-step='3']").click()
+    page.locator("[data-step='4']").click()
+    check("cv-ask not shown twice", not ask.is_visible())
+    # ответ: пояснение и продолжение с шага «Выполнение» (новый контекст страницы, чтобы вопрос снова был доступен)
+    page.reload(wait_until="networkidle")
+    page.wait_for_timeout(800)
+    page.locator("[data-step='4']").click()
+    check("cv-ask visible on direct step 4", ask.is_visible())
+    ask.locator("[data-ask='tools']").click()
+    check("cv-ask explanation visible", ask.is_visible() and "ToolNode" in ask.inner_text())
+    page.locator("[data-ask-continue]").click()
+    check("cv-ask closes on continue", not ask.is_visible())
+    check("cv-ask continues from step 4", page.locator(".cv-caption .step-n").inner_text() == "4 / 6")
+    check("cv-ask no Javascript errors", not errors)
+    context.close()
+
+    # Лаба в режиме «Проверить себя»: без горизонтального скролла на 390.
+    context = browser.new_context(viewport={"width": 390, "height": 844}, color_scheme="dark")
+    context.add_init_script(ONBOARDED)
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(BASE + "#tools-mcp-lab", wait_until="networkidle")
+    page.wait_for_timeout(1500)
+    page.locator("[data-group=mode] [data-v=check]").click()
+    check("lab check 390: no page overflow", page.evaluate("document.documentElement.scrollWidth <= innerWidth"))
+    page.locator("[data-pred='2 и 1']").click()
+    page.locator("[data-lab=run]").click()
+    page.locator("[data-lab=run] span").filter(has_text="Заново").wait_for(timeout=20000)
+    check("lab check 390 after run: no page overflow", page.evaluate("document.documentElement.scrollWidth <= innerWidth"))
+    check("lab check 390: no Javascript errors", not errors)
+    context.close()
+
     # Онбординг: чистый контекст, одно окно с плашкой демо.
     PILL = "Это демо-превью. Ответы ИИ заготовлены заранее, проверка ответов — упрощённая заглушка. Сохраняется только в этом браузере"
     for width in (390, 1440):

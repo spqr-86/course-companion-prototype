@@ -1121,3 +1121,36 @@ textarea.understood, textarea.check-answer { width: 100%; box-sizing: border-box
 .verdict-text { margin: 0; flex: 1 1 100%; }
 .demo-badge { font: 600 11px/1 var(--f-ui); padding: 5px 8px; border-radius: 999px; background: var(--sunken); color: var(--muted); }
 .course-progress b { font-variant-numeric: tabular-nums; }
+
+/* Лаборатория 0.4: режим «Проверить себя» */
+.lab-modebar { padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.lab-modebar .seg-ctl { max-width: 380px; }
+.lab-predict, .lab-check { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--sunken); }
+.lab-check { border-bottom: 0; border-top: 1px solid var(--line); display: grid; gap: 18px; }
+.lab-check[hidden], .lab-predict[hidden], .lab-explain[hidden], .lab-transfer[hidden], .pred-result[hidden], .lab-note[hidden] { display: none; }
+.pred-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.pred-opts .btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--ink); font-weight: 600; }
+.pred-result { margin: 10px 0 0; font-weight: 600; }
+.lab-explain textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; font: 15px/1.5 var(--f-ui); color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; resize: vertical; }
+.transfer-answer { width: 7em; max-width: 100%; box-sizing: border-box; padding: 8px 10px; font: 15px var(--f-ui); color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; }
+.transfer-result { margin: 8px 0 0; line-height: 1.5; }
+.transfer-result[data-ok="true"] { font-weight: 600; }
+/* Маска результата до прогноза: ответ не должен быть виден до запуска */
+.masked { filter: blur(8px); opacity: .45; user-select: none; pointer-events: none; }
+.lab-note { margin: 18px 0 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.lab-note-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+/* Code-video: необязательный вопрос */
+.cv-ask { margin: 12px 0; padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--c-call-soft); display: grid; gap: 8px; justify-items: start; }
+.cv-ask[hidden], .cv-ask [hidden] { display: none; }
+.cv-ask-note { font-size: 13px; color: var(--ink-2); }
+.cv-ask-opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.cv-ask-explain { margin: 0; line-height: 1.5; }
+/* Архив заявок на генерацию */
+.side-archive { margin: 6px 0; border: 1px dashed var(--line-strong); border-radius: 8px; }
+.side-archive > summary { cursor: pointer; padding: 8px 10px; font-size: 13.5px; color: var(--ink-2); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.archive-badge { font: 600 10.5px/1 var(--f-ui); padding: 4px 7px; border-radius: 999px; background: var(--sunken); color: var(--muted); }
+.side-nav .side-archive > a { margin: 0 6px 6px; }
+.ctabs .ctab-archive { margin: 0 0 4px 8px; align-self: center; }
+.ctabs .ctab-archive > a { display: block; margin: 0 8px 8px; padding: 6px 8px; }
+/* В режиме проверки условия задаёт сама проверка: выбор сценария и условий скрыт */
+.lab.checking .lab-side { display: none; }

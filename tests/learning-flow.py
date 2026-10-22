@@ -150,6 +150,85 @@ def section_flow(page):
     print("PASS section_flow", flush=True)
 
 
+LAB_EXPLAIN_OK = "Ключ идемпотентности делает повторный вызов безопасным: сервер находит ключ и возвращает сохранённый ответ, поэтому отмена выполняется один раз, а без ключа каждый повтор снова выполняет отмену и оформляет лишний возврат"
+
+
+def lab_flow(page):
+    """Лаба L01: «Исследовать» по умолчанию, «Проверить себя»: прогноз → запуск → объяснение → новое условие."""
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(BASE + "#tools-mcp-lab", wait_until="networkidle")
+    page.evaluate("localStorage.removeItem('cc-preview-0.4')")
+    page.evaluate("localStorage.setItem('cc-preview-0.4', JSON.stringify({onboarded: true}))")
+    page.reload(wait_until="networkidle")
+    lab = page.locator(".lab")
+    expect(lab.locator("[data-group=mode] [data-v=explore]")).to_have_attribute("aria-pressed", "true")
+    expect(lab.locator(".counters").first).to_be_visible()
+    assert page.locator(".lab.checking").count() == 0
+    assert page.evaluate("Learn.state().last.mode") == "explore"
+    lab.locator("[data-group=mode] [data-v=check]").click()
+    assert page.evaluate("Learn.state().last.mode") == "check"
+    assert page.evaluate("Learn.state().last.kind") == "lab"
+    expect(page.locator(".lab.checking")).to_be_visible()
+    assert page.locator(".lab .counters.masked").count() == 2
+    assert page.locator(".lab-comparison.masked").count() == 1
+    expect(lab.locator("[data-lab=run]")).to_be_disabled()
+    expect(page.locator(".lab-explain")).to_be_hidden()
+    lab.locator("[data-pred='2 и 1']").click()
+    expect(lab.locator("[data-lab=run]")).to_be_enabled()
+    lab.locator("[data-lab=run]").click()
+    page.locator("[data-lab=run] span").filter(has_text="Заново").wait_for(timeout=15000)
+    assert page.locator(".lab .counters.masked").count() == 0
+    expect(page.locator(".lab-predict")).to_contain_text("Ваш прогноз: 2 и 1")
+    expect(page.locator(".lab-predict")).to_contain_text("вышло: 2 и 1")
+    assert page.locator(".lab-comparison.masked").count() == 0
+    expect(page.locator(".lane .counters").first).to_be_visible()
+    # объяснение: коротко -> нет, достаточно -> зачтено, вердикт остаётся виден
+    ex = page.locator(".lab-explain")
+    expect(ex).to_be_visible()
+    ex.locator("textarea").fill("ключ нужен")
+    page.wait_for_timeout(600)
+    assert page.evaluate("Learn.state().understood['shad:L01:draft']") == "ключ нужен"
+    ex.locator("[data-explain-submit]").click()
+    expect(ex.locator(".verdict")).to_contain_text("Слишком коротко")
+    expect(ex.locator(".demo-badge")).to_be_visible()
+    # переключение туда-обратно не теряет введённое
+    lab.locator("[data-group=mode] [data-v=explore]").click()
+    expect(page.locator(".lab.checking")).to_have_count(0)
+    lab.locator("[data-group=mode] [data-v=check]").click()
+    assert ex.locator("textarea").input_value() == "ключ нужен"
+    ex.locator("textarea").fill(LAB_EXPLAIN_OK)
+    ex.locator("[data-explain-submit]").click()
+    expect(ex.locator(".verdict")).to_contain_text("Зачтено")
+    expect(ex.locator(".verdict")).to_be_visible()
+    assert page.evaluate("Learn.state().understood['shad:L01']") == LAB_EXPLAIN_OK
+    assert page.evaluate("'shad:L01:draft' in Learn.state().understood") is False
+    assert page.evaluate("Learn.state().status['shad:L01']") is None
+    # новое условие
+    tr = page.locator(".lab-transfer")
+    expect(tr).to_be_visible()
+    tr.locator("input").fill("2")
+    tr.locator("[data-transfer-check]").click()
+    expect(tr.locator(".transfer-result")).not_to_contain_text("Верно")
+    assert page.evaluate("Learn.state().status['shad:L01']") is None
+    tr.locator("input").fill("3")
+    tr.locator("[data-transfer-check]").click()
+    expect(tr.locator(".transfer-result")).to_contain_text("Верно")
+    expect(tr.locator(".transfer-result")).to_be_visible()
+    assert page.evaluate("Learn.state().status['shad:L01']") == "self"
+    tr.locator("[data-transfer-run]").click()
+    page.locator("[data-lab=run] span").filter(has_text="Заново").wait_for(timeout=20000)
+    expect(page.locator(".lane").nth(0).locator(".counters")).to_contain_text("360 $")
+    expect(page.locator(".lab-note")).to_contain_text("Мой вывод")
+    expect(page.locator(".lab-note")).to_contain_text("моя заметка")
+    page.reload(wait_until="networkidle")
+    expect(page.locator(".lab-note")).to_be_visible()
+    expect(page.locator(".lab-note")).to_contain_text("Ключ идемпотентности делает")
+    assert page.evaluate("Learn.state().status['shad:L01']") == "self"
+    assert not errors, errors
+    print("PASS lab_flow", flush=True)
+
+
 with sync_playwright() as p:
     browser = p.chromium.launch(**({"executable_path": CHROME} if CHROME else {}))
     unit_ctx = browser.new_context(viewport={"width": 1024, "height": 800})
@@ -160,6 +239,10 @@ with sync_playwright() as p:
     sec_ctx.add_init_script(ONBOARDED)
     section_flow(sec_ctx.new_page())
     sec_ctx.close()
+    lab_ctx = browser.new_context(viewport={"width": 1024, "height": 800})
+    lab_ctx.add_init_script(ONBOARDED)
+    lab_flow(lab_ctx.new_page())
+    lab_ctx.close()
     for width, theme in [(390, "light"), (1440, "light"), (390, "dark")]:
         if os.environ.get("CC_ONLY") and os.environ["CC_ONLY"] != f"{width}-{theme}":
             continue

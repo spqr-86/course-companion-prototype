@@ -57,6 +57,8 @@
   const chapterForNotes = n => S.data && S.data.chapters.find(c => c.notes_section === n);
 
   /* ---------- Навигация ---------- */
+  const ARCHIVE_BADGE = "Уходит в архив, в MVP-0 нет";
+
   function renderSide(route) {
     const cur = t => route === t || (t === "lecture-tools-mcp" && route.startsWith("tools-mcp")) ? ' aria-current="page"' : "";
     const lectures = C.course.modules.flatMap(m => m.lectures);
@@ -69,7 +71,10 @@
       <a href="#library"${cur("library")}>Библиотека</a>
       <div class="group">Неделя агентов 2026</div>
       <a href="#course-shad"${cur("course-shad")}>Обзор курса</a>
-      <a href="#course-requests"${cur("course-requests")}>Заявки на генерацию${X.activeCount() ? `<span class="cnt">${X.activeCount()}</span>` : ""}</a>
+      <details class="side-archive"${route === "course-requests" ? " open" : ""}>
+        <summary>Заявки на генерацию${X.activeCount() ? `<span class="cnt">${X.activeCount()}</span>` : ""}<span class="archive-badge">${ARCHIVE_BADGE}</span></summary>
+        <a href="#course-requests"${cur("course-requests")}>Открыть заявки</a>
+      </details>
       ${lectures.map(l => l.token
         ? `<a href="#${l.token}"${cur(l.token)}><span class="k">${l.code}</span>${esc(l.title)}</a>`
         : `<a class="off" href="#course-shad" title="Лекция ещё не собрана"><span class="k">${l.code}</span>${esc(l.title)}</a>`).join("")}
@@ -97,7 +102,7 @@
     S.observers.forEach(io => io.disconnect()); S.observers = [];
     LearnUI.dispose();
     S.cv && S.cv.pause();
-    S.lab && S.lab.stop();
+    S.lab && S.lab.dispose();
     if (S.player && S.player.destroy) try { S.player.destroy(); } catch (e) { }
     S.player = null; S.ytState = "idle";
     clearInterval(S.poll);
@@ -250,7 +255,10 @@
   <a class="btn btn--primary course-resume" href="#lecture-tools-mcp" data-resume-course>Продолжить · Tools &amp; MCP · ${fmt(C.moments.idempotency.t)}</a>
   <nav class="ctabs" aria-label="Разделы курса">
     <a href="#course-shad"${tab === "overview" ? ' aria-current="page"' : ""}>Обзор</a>
-    <a href="#course-requests"${tab === "requests" ? ' aria-current="page"' : ""}>Заявки${X.activeCount() ? ` <span class="cnt">${X.activeCount()}</span>` : ""}</a>
+    <details class="side-archive ctab-archive"${tab === "requests" ? " open" : ""}>
+      <summary>Заявки на генерацию${X.activeCount() ? ` <span class="cnt">${X.activeCount()}</span>` : ""}<span class="archive-badge">${ARCHIVE_BADGE}</span></summary>
+      <a href="#course-requests"${tab === "requests" ? ' aria-current="page"' : ""}>Открыть заявки</a>
+    </details>
   </nav>`;
     const y = window.scrollY;
     if (tab === "requests") {
@@ -465,6 +473,7 @@
     if (S.mode && S.mode !== sec) S.positions[S.mode] = window.scrollY;
     if (S.mode === "codevideo" && sec !== S.mode) S.cv?.pause();
     if (S.mode === "lab" && sec !== S.mode) S.lab?.stop();
+    if (sec === "lab" && S.mode !== "lab") S.lab?.enter();
     S.mode = sec;
     ["video", "notes", "code", "codevideo", "lab"].forEach(k => { $("#sec-" + k).hidden = k !== sec; });
     $$(".localnav a").forEach(a => {
