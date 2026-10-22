@@ -734,9 +734,14 @@ button.labcard:hover { border-color: var(--ink); }
 }
 .frag:hover > .frag-plus, .tr-para:hover > .frag-plus, .frag-plus:focus-visible, .frag-plus[aria-expanded="true"] { opacity: 1; }
 .frag-plus:hover { color: var(--ink); border-color: var(--ink); }
-.frag.is-mine > .frag-src { display: none; }
-.frag.is-mine.show-orig > .frag-src { display: block; opacity: .7; padding-left: 12px; border-left: 2px dashed var(--line-strong); }
-.frag.is-mine.show-orig > .frag-src::before { content: "Оригинал"; display: block; font: 600 11px/1.6 var(--f-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.frag[data-v]:not([data-v="orig"]) > .frag-src { display: none; }
+.frag[data-v="orig"] > .frag-mine { display: none; }
+.vtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0 0 8px; font: 500 13px/1.2 var(--f-ui); }
+.vtabs [role="tab"] { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); cursor: pointer; min-height: 32px; }
+.vtabs [role="tab"][aria-selected="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.vtab-origin { margin-left: 6px; font-size: 12px; color: var(--muted); }
+.frag.editing > .vtabs { display: none; }
+.xcard--example { border-left: 3px solid var(--c-call); }
 .frag.editing > .frag-src, .frag.editing > .frag-mine { display: none; }
 .frag-mine { margin: 0 0 16px; padding: 10px 14px 2px; border-left: 3px solid var(--c-result); background: var(--c-result-soft); border-radius: 0 10px 10px 0; }
 .mine-bar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-bottom: 6px; font: 400 13px/1.4 var(--f-ui); }
@@ -819,6 +824,10 @@ button.labcard:hover { border-color: var(--ink); }
 .fmenu button:hover, .fmenu button:focus-visible { background: var(--sunken); }
 .fmenu b { font-weight: 600; font-size: 14px; }
 .fmenu small { font-size: 12px; color: var(--muted); }
+.fmenu .fa-more > summary { padding: 8px 10px; border-radius: 8px; cursor: pointer; font: 600 13px/1.3 var(--f-ui); color: var(--ink-2); }
+.fmenu .fa-more > summary:hover, .fmenu .fa-more > summary:focus-visible { background: var(--sunken); }
+.fmenu .fa-more[open] { display: grid; gap: 2px; }
+.fmenu button[hidden] { display: none; }
 .fmenu.sheet { left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom, 0px)); top: auto; width: auto; }
 
 /* тост */

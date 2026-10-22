@@ -125,17 +125,50 @@ with sync_playwright() as p:
         page.locator("#toc-mobile [data-notes='1']").click()
         page.wait_for_timeout(600)
         frag = page.locator(".frag[data-rw='1']").first
+        orig_text = frag.locator(".frag-src").inner_text()
         frag.hover()
         frag.locator(".frag-plus").click()
+        # Меню: три главных действия по порядку, «Проверить себя» пока скрыта, «Создать объяснение» убрано
+        order = page.evaluate("[...document.querySelectorAll('#fmenu [data-fa]')].filter(b => !b.closest('.fa-more')).map(b => b.dataset.fa)")
+        assert order[:3] == ["simple", "example", "check"], order
+        labels = page.evaluate("[...document.querySelectorAll('#fmenu [data-fa]')].map(b => b.querySelector('b').textContent)")
+        assert labels == ["Объяснить", "Показать на примере", "Проверить себя", "Переписать иначе", "Моя версия", "Спросить в чате"], labels
+        assert page.locator("[data-fa=check]").get_attribute("hidden") is not None
+        expect(page.locator("[data-fa=scene]")).to_have_count(0)
+        expect(page.locator("#fmenu .fa-more summary")).to_have_text("Ещё")
+        # «Показать на примере» в разделе без лабы: карточка с пометкой
+        page.locator("[data-fa=example]").click()
+        expect(page.locator(".xcard--example")).to_contain_text("объяснение ИИ · демо")
+        assert page.evaluate("Learn.state().status['shad:1']") == "helped"
+        # «Объяснить»: вкладка simple, текст отличается от оригинала
+        frag.hover()
+        frag.locator(".frag-plus").click()
+        page.locator("[data-fa=simple]").click()
+        expect(frag.locator("[data-vtab=simple][aria-selected=true]")).to_have_count(1)
+        assert frag.locator(".frag-mine").inner_text() != orig_text
+        expect(frag.locator(".frag-mine")).to_contain_text("объяснение ИИ · демо")
+        expect(frag.locator(".frag-src")).to_be_hidden()
+        frag.locator("[data-vtab=orig]").click()
+        expect(frag.locator(".frag-src")).to_be_visible()
+        expect(frag.locator("[data-vtab=orig][aria-selected=true]")).to_have_count(1)
+        # «Моя версия»
+        frag.hover()
+        frag.locator(".frag-plus").click()
+        page.locator("#fmenu .fa-more summary").click()
         page.locator("[data-fa=rewrite]").click()
         frag.locator("textarea").fill("Мой пример: модель выбирает функцию, а код её запускает.")
         frag.locator("[data-edit-save]").click()
+        expect(frag.locator("[data-vtab=mine][aria-selected=true]")).to_have_count(1)
         expect(frag.locator(".frag-mine")).to_contain_text("Мой пример")
+        expect(frag.locator(".frag-mine")).to_contain_text("моя заметка")
         page.reload(wait_until="networkidle")
         expect(page.locator(".frag.is-mine .frag-mine")).to_contain_text("Мой пример")
         frag = page.locator(".frag.is-mine").first
+        expect(frag.locator("[data-vtab=mine][aria-selected=true]")).to_have_count(1)
+        expect(frag.locator("[data-vtab=simple]")).to_have_count(1)
         frag.hover()
         frag.locator(".frag-plus").click()
+        page.locator("#fmenu .fa-more summary").click()
         page.locator("[data-fa=ask]").click()
         page.locator("#chat-input").fill("Объясни на примере")
         page.locator("#chat-form button").click()
@@ -145,7 +178,19 @@ with sync_playwright() as p:
         shot("chat")
         page.locator("#chat-close").click()
         frag.locator("[data-mine=reset]").click()
+        expect(frag.locator("[data-vtab=mine]")).to_have_count(0)
         expect(page.locator(".frag.is-mine")).to_have_count(0)
+        # пример в разделе с лабораторией ведёт в лабораторию
+        page.locator("#notes-jump").click()
+        page.locator("#toc-mobile [data-notes='4']").click()
+        settle_scroll()
+        f4 = page.locator(".frag[data-sec='4']").first
+        f4.hover()
+        f4.locator(".frag-plus").click()
+        page.locator("[data-fa=example]").click()
+        page.wait_for_timeout(400)
+        assert page.evaluate("location.hash") == "#tools-mcp-lab", page.evaluate("location.hash")
+        navigate("notes")
         navigate("code")
         page.locator("[data-wt='1']").click()
         expect(page.locator("[data-wt='1']")).to_have_attribute("aria-selected", "true")

@@ -19,21 +19,14 @@
   const BUDGET = 10;
   const VISUAL = new Set([3, 4, 7, 11]); // разделы, где уже есть схема, code-video или лаборатория
 
-  // Пересказ «проще» по разделам конспекта: подготовлен вручную, в продукте его пишет агент.
-  const SIMPLE = {
-    1: "Без инструментов модель знает только то, что выучила, и считает «на глаз». Поэтому ошибается в подсчётах, не знает свежих фактов и ничего не может сделать сама. Инструменты закрывают все три пробела.",
-    2: "Инструмент — обычная функция плюс описание для модели: что делает, какие аргументы принимает и что вернёт. Модель видит только описание, код функции ей не виден.",
-    3: "Модель не нажимает кнопок. Она пишет записку: «вызови list_all_airports для Лондона». Код агента читает записку, вызывает функцию и отдаёт результат модели, а та отвечает человеку.",
-    4: "Инструмент работает в ненадёжном мире: связь рвётся, вызов повторяется, шаг цепочки падает. Хороший инструмент к этому готов: откатывает начатое, не делает работу дважды при повторе, понятно объясняет ошибку и возвращает данные в машинной форме.",
-    5: "Пока инструменты вшиты в каждого агента, одну и ту же интеграцию пишут и чинят много раз. С ростом числа агентов и API это становится дорого и хрупко.",
-    6: "MCP — общий разъём между AI-приложениями и внешними системами. Сервис подключают через MCP один раз, и им пользуется любое приложение, которое понимает протокол.",
-    7: "Host — само приложение с моделью и интерфейсом. Server даёт инструменты и данные. Client — провод между ними, по одному на каждый сервер.",
-    8: "Сначала приложение опрашивает серверы и собирает общий список инструментов. Потом на каждый запрос модель выбирает инструмент, приложение вызывает его через нужный клиент и возвращает модели результат.",
-    9: "MCP переносит заботу об интеграции к автору сервера: инструмент пишут один раз, обновляют в одном месте, а агенты узнают об изменениях при подключении.",
-    10: "MCP не обязателен с первого дня. Пока инструменты не нужно делить между агентами, хватит простых функций или готовых наборов вроде Agent Skills.",
-    11: "Практика повторяет теорию в коде: сначала цикл вызова вручную через JSON, затем описание из сигнатуры функции, затем то же самое средствами LangGraph.",
-    12: "Раздел — вопросы для самопроверки по всей лекции. Удобно проходить после лаборатории."
-  };
+  // Пересказы «проще» живут в data/demo-ai.js (window.CCDemoAI); в продукте их пишет агент.
+  const AI = () => window.CCDemoAI.shad;
+  const simpleText = sec => AI().simple[sec] || AI().simple[4];
+  // Раздел → маршрут «примера» (лаборатория, анимация кода, практика), как в #example-route из 0.3; остальным — карточка.
+  const EXAMPLE_ROUTE = { 3: "tools-mcp-codevideo", 4: "tools-mcp-lab", 11: "tools-mcp-code" };
+  const VT = { orig: "Оригинал", simple: "Проще", rewrite: "Иначе", mine: "Моя версия" };
+  const VORIGIN = { orig: "объяснение ИИ", simple: "объяснение ИИ · демо", rewrite: "объяснение ИИ · демо", mine: "моя заметка" };
+  const helped = sec => window.Learn && Learn.setStatus(Learn.key("shad", sec), "helped");
 
   const L02 = {
     lab: "L02", kind: "lab", title: "L02 · Частичный сбой транзакции", lecture: "1.2", sec: 4,
@@ -354,16 +347,36 @@
     if (el.tagName === "OL") return $$(":scope > li", el).map((li, i) => `${i + 1}. ${li.innerText.trim()}`).join("\n");
     return el.innerText.trim();
   }
+  // Версии абзаца живут во вкладках: оригинал не заменяется. Какие вкладки есть и какая активна — в Learn.versions[pid].
+  const vers = pid => { const v = window.Learn && Learn.state().versions[pid]; return v && typeof v === "object" ? v : {}; };
+  function setVers(pid, patch) {
+    if (!window.Learn) return;
+    const all = { ...Learn.state().versions };
+    all[pid] = { ...vers(pid), ...patch };
+    Learn.save({ versions: all });
+  }
   function applyEdit(frag) {
-    const pid = frag.dataset.pid, text = st.edits[pid], mine = $(".frag-mine", frag);
-    frag.classList.toggle("is-mine", text != null);
-    frag.classList.remove("show-orig");
-    if (text == null) { mine.hidden = true; mine.innerHTML = ""; return; }
+    const pid = frag.dataset.pid, text = st.edits[pid], mine = $(".frag-mine", frag), v = vers(pid);
+    const has = { orig: true, simple: !!v.simple, rewrite: !!v.rewrite, mine: text != null };
+    const active = has[v.active] ? v.active : has.mine ? "mine" : "orig";
+    frag.classList.toggle("is-mine", has.mine);
+    frag.dataset.v = active;
+    let tabs = $(".vtabs", frag);
+    const focusTab = tabs && tabs.contains(document.activeElement) ? document.activeElement.dataset.vtab : null;
+    if (!has.simple && !has.rewrite && !has.mine) { tabs?.remove(); mine.hidden = true; mine.innerHTML = ""; return; }
+    if (!tabs) { tabs = document.createElement("div"); tabs.className = "vtabs"; tabs.setAttribute("role", "tablist"); tabs.setAttribute("aria-label", "Версии абзаца"); $(".frag-src", frag).before(tabs); }
+    tabs.innerHTML = Object.keys(VT).filter(k => has[k]).map(k =>
+      `<button type="button" role="tab" data-vtab="${k}" aria-selected="${k === active}" tabindex="${k === active ? 0 : -1}">${VT[k]}</button>`).join("") +
+      `<span class="vtab-origin">${VORIGIN[active]}</span>`;
+    if (focusTab) $(`[data-vtab="${focusTab}"]`, tabs)?.focus({ preventScroll: true });
+    if (active === "orig") { mine.hidden = true; mine.innerHTML = ""; return; }
     mine.hidden = false;
-    mine.innerHTML = `<div class="mine-bar"><span class="xtag">Моя версия</span>
-      <button class="xbtn" type="button" data-mine="orig" aria-pressed="false">Показать оригинал</button>
-      <button class="xbtn" type="button" data-mine="edit">Править</button>
-      <button class="xbtn" type="button" data-mine="reset">Вернуть оригинал</button></div><div class="mine-body">${md(text)}</div>`;
+    mine.setAttribute("role", "tabpanel");
+    mine.innerHTML = active === "mine"
+      ? `<div class="mine-bar"><span class="xtag">${VORIGIN.mine}</span>
+        <button class="xbtn" type="button" data-mine="edit">Править</button>
+        <button class="xbtn" type="button" data-mine="reset">Удалить мою версию</button></div><div class="mine-body">${md(text)}</div>`
+      : `<div class="mine-bar"><span class="xtag">${VORIGIN[active]}</span></div><div class="mine-body">${md((active === "simple" ? AI().simple : AI().rewrite)[frag.dataset.sec] || (active === "simple" ? simpleText(4) : AI().rewrite[4]))}</div>`;
   }
   function startEdit(frag) {
     hideMenu();
@@ -444,10 +457,14 @@
     menuOpener = document.activeElement;
     const src = c.src === "notes" ? `§${c.sec} ${esc(secTitle(c.sec))}` : `${fmt(c.t)} · ${esc(c.chapter)}`;
     menu.innerHTML = `<div class="fmenu-q"><span>${src}</span>«${esc(clip(c.quote, 90))}»</div>
-      <button type="button" role="menuitem" data-fa="ask"><b>Спросить в чате</b><small>цитата уйдёт со ссылкой на ${c.src === "notes" ? `§${c.sec}` : `момент ${fmt(c.t)}`}</small></button>
-      <button type="button" role="menuitem" data-fa="simple"><b>Объяснить проще</b><small>пересказ под фрагментом</small></button>
-      ${c.rw ? `<button type="button" role="menuitem" data-fa="rewrite"><b>Переписать по-своему</b><small>личная версия, оригинал сохранится</small></button>` : ""}
-      <button type="button" role="menuitem" data-fa="scene"><b>Создать объяснение</b><small>анимация или лаборатория · сначала план</small></button>`;
+      <button type="button" role="menuitem" data-fa="simple"><b>Объяснить</b><small>версия проще, оригинал сохранится</small></button>
+      <button type="button" role="menuitem" data-fa="example"><b>Показать на примере</b><small>лаборатория, анимация или пример ИИ</small></button>
+      <button type="button" role="menuitem" data-fa="check" hidden><b>Проверить себя</b><small>вопросы по разделу</small></button>
+      <details class="fa-more"><summary>Ещё</summary>
+        ${c.rw ? `<button type="button" role="menuitem" data-fa="airewrite"><b>Переписать иначе</b><small>другая формулировка ИИ, оригинал сохранится</small></button>
+        <button type="button" role="menuitem" data-fa="rewrite"><b>Моя версия</b><small>личная версия, оригинал сохранится</small></button>` : ""}
+        <button type="button" role="menuitem" data-fa="ask"><b>Спросить в чате</b><small>цитата уйдёт со ссылкой на ${c.src === "notes" ? `§${c.sec}` : `момент ${fmt(c.t)}`}</small></button>
+      </details>`;
     menu.dataset.mode = mode;
     menu.hidden = false;
     menu.classList.toggle("sheet", touchUI());
@@ -491,21 +508,34 @@
       A().openChat();
       return;
     }
-    if (a === "simple") {
+    if (a === "simple" || a === "airewrite") {
+      if (c.src === "notes") {
+        setVers(c.pid, a === "simple" ? { simple: true, active: "simple" } : { rewrite: true, active: "rewrite" });
+        applyEdit(c.frag);
+      } else {
+        // У абзаца транскрипта вкладок нет: пересказ сразу сохраняется карточкой в конспект раздела.
+        const text = a === "simple" ? simpleText(c.sec) : (AI().rewrite[c.sec] || AI().rewrite[4]);
+        st.cards.push({ id: "c" + st.seq++, kind: "simple", sec: c.sec, text, refs: [{ t: c.t, label: "фрагмент транскрипта" }] });
+        changed();
+        toast(`Пересказ сохранён в конспект §${c.sec}.`);
+      }
+      helped(c.sec);
+      return;
+    }
+    if (a === "example") {
+      const route = EXAMPLE_ROUTE[c.sec];
+      if (route) { location.hash = route; return; }
       const anchor = c.src === "notes" ? $(".frag-cards", c.frag) : c.para;
       if (!anchor) return;
-      $$(".xcard--draft-simple").forEach(x => x.remove());
-      anchor.insertAdjacentHTML("afterend", `<div class="xcard xcard--simple xcard--draft-simple">
-        <div class="xh"><span class="xtag">Проще · демо-текст подготовлен заранее</span><button class="xbtn" type="button" data-simple-drop>Убрать</button></div>
-        <p>${esc(SIMPLE[c.sec] || SIMPLE[4])}</p>
-        <div class="row"><button class="btn btn--small" type="button" data-simple-keep>${c.src === "notes" ? "Оставить под абзацем" : `Сохранить в конспект §${c.sec}`}</button></div></div>`);
-      lastSimple = c;
+      $$(".xcard--example").forEach(x => x.remove());
+      const html = `<div class="xcard xcard--example"><div class="xh"><span class="xtag">Пример · объяснение ИИ · демо</span><button class="xbtn" type="button" data-example-drop>Убрать</button></div>
+        <p>${esc(AI().example[c.sec] || "")}</p></div>`;
+      if (c.src === "notes") anchor.insertAdjacentHTML("beforeend", html); else anchor.insertAdjacentHTML("afterend", html);
+      helped(c.sec);
       return;
     }
     if (a === "rewrite" && c.frag) { startEdit(c.frag); return; }
-    if (a === "scene") planFromCtx(c, c.src === "notes" ? "Меню фрагмента" : "Меню транскрипта");
   }
-  let lastSimple = null;
 
   /* ---------- Чат: цитата, закрепление, предложение агента ---------- */
   let quote = null;
@@ -517,7 +547,7 @@
       <button class="icon-btn" type="button" data-quote-clear aria-label="Убрать цитату"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
   }
   function takeQuote() { const q = quote; quote = null; renderQuote(); return q; }
-  function quoteAnswer(q) { return `По фрагменту из ${q.label.toLowerCase().replace("конспект", "конспекта").replace("транскрипт", "транскрипта")}: ${SIMPLE[q.sec] || SIMPLE[4]}`; }
+  function quoteAnswer(q) { return `По фрагменту из ${q.label.toLowerCase().replace("конспект", "конспекта").replace("транскрипт", "транскрипта")}: ${simpleText(q.sec)}`; }
 
   function pinChat(m) {
     const sec = m.sec || 3;
@@ -619,29 +649,20 @@
     if ((el = on("[data-mini] button"))) { $$("button", el.parentElement).forEach(b => b.setAttribute("aria-pressed", b === el)); return; }
     if ((el = on("[data-mini-run]"))) { runMini(el.closest(".mini")); return; }
     if ((el = on("[data-card-del]"))) { st.cards = st.cards.filter(c => c.id !== el.dataset.cardDel); changed(); return; }
-    if ((el = on("[data-simple-drop]"))) { el.closest(".xcard").remove(); return; }
-    if ((el = on("[data-simple-keep]"))) {
-      const c = lastSimple;
-      el.closest(".xcard").remove();
-      if (!c) return;
-      st.cards.push(c.src === "notes" ? { id: "c" + st.seq++, kind: "simple", sec: c.sec, pid: c.pid, text: SIMPLE[c.sec] || SIMPLE[4] }
-        : { id: "c" + st.seq++, kind: "simple", sec: c.sec, text: SIMPLE[c.sec] || SIMPLE[4], refs: [{ t: c.t, label: "фрагмент транскрипта" }] });
-      changed();
-      if (c.src !== "notes") toast(`Пересказ сохранён в конспект §${c.sec}.`);
-      return;
-    }
+    if ((el = on("[data-example-drop]"))) { el.closest(".xcard").remove(); return; }
+    if ((el = on("[data-vtab]"))) { const frag = el.closest(".frag"); setVers(frag.dataset.pid, { active: el.dataset.vtab }); applyEdit(frag); return; }
     if ((el = on("[data-edit-save]"))) {
       const frag = el.closest(".frag"), v = $("textarea", frag).value.trim();
       if (v && v !== srcText($(".frag-src", frag))) st.edits[frag.dataset.pid] = v; else delete st.edits[frag.dataset.pid];
+      if (st.edits[frag.dataset.pid] != null) setVers(frag.dataset.pid, { active: "mine" });
       save(); $(".frag-edit", frag).remove(); frag.classList.remove("editing"); applyEdit(frag);
       return;
     }
     if ((el = on("[data-edit-cancel]"))) { const frag = el.closest(".frag"); $(".frag-edit", frag).remove(); frag.classList.remove("editing"); return; }
     if ((el = on("[data-mine]"))) {
       const frag = el.closest(".frag"), a = el.dataset.mine;
-      if (a === "orig") { const v = frag.classList.toggle("show-orig"); el.setAttribute("aria-pressed", v); el.textContent = v ? "Скрыть оригинал" : "Показать оригинал"; }
       if (a === "edit") startEdit(frag);
-      if (a === "reset") { delete st.edits[frag.dataset.pid]; save(); applyEdit(frag); toast("Возвращён оригинальный текст."); }
+      if (a === "reset") { delete st.edits[frag.dataset.pid]; if (vers(frag.dataset.pid).active === "mine") setVers(frag.dataset.pid, { active: "orig" }); save(); applyEdit(frag); toast("Моя версия удалена."); }
       return;
     }
     if ((el = on("[data-mat-open]"))) { const f = $(`[data-mat-form="${el.dataset.matOpen}"]`); f.hidden = !f.hidden; if (!f.hidden) $("[data-mat-in]", f).focus(); return; }
