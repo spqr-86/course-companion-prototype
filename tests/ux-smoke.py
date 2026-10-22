@@ -89,12 +89,35 @@ with sync_playwright() as p:
             page.locator("#menu-btn").click()
         page.locator("[data-open-onboarding]:visible").first.click()
         check(prefix + " reopens from menu", page.locator("#onb-modal").is_visible())
+        page.keyboard.press("Escape")
+        check(prefix + " sidebar drawer closed after reopen", not page.evaluate("document.querySelector('#side').classList.contains('open')"))
+        page.locator("[data-open-onboarding]:visible").first.click() if width > 390 else (page.locator("#menu-btn").click(), page.locator("[data-open-onboarding]:visible").first.click())
+        page.locator("[data-onb=shad]").click()
+        page.wait_for_timeout(200)
+        check(prefix + " shad button sets hash", page.evaluate("/^#(lecture|tools-mcp)/.test(location.hash)"))  # лекция сама уточняет хэш до раздела
+        if width == 390:
+            page.locator("#menu-btn").click()
+        page.locator("[data-open-onboarding]:visible").first.click()
         page.locator("[data-onb=physics]").click()
         page.wait_for_timeout(200)
         check(prefix + " physics button sets hash", page.evaluate("location.hash") == "#physics")
         check(prefix + " physics button closes dialog", not page.locator("#onb-modal").is_visible())
         check(prefix + " no Javascript errors", not errors)
         context.close()
+    # Прямая ссылка на лекцию в чистом контексте: окно один раз, хэш не меняется.
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(BASE + "#lecture-tools-mcp", wait_until="networkidle")
+    check("onboarding deep link: modal shown", page.locator("#onb-modal").is_visible())
+    page.locator("[data-onb-close]").click()
+    check("onboarding deep link: stays on lecture hash after close", page.evaluate("/^#(lecture|tools-mcp)/.test(location.hash)"))  # лекция сама уточняет хэш до раздела
+    check("onboarding deep link: lecture stays", page.locator("#notes").count() > 0)
+    page.reload(wait_until="networkidle")
+    check("onboarding deep link: not shown again", not page.locator("#onb-modal").is_visible())
+    check("onboarding deep link: no Javascript errors", not errors)
+    context.close()
     browser.close()
 
 if failures:

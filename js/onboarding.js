@@ -23,7 +23,10 @@
     location.hash = go.dataset.onb === "physics" ? "#physics" : "#lecture-tools-mcp";
   });
   document.addEventListener("click", e => {
-    if (e.target.closest("[data-open-onboarding]")) open();
+    if (!e.target.closest("[data-open-onboarding]")) return;
+    // Мобильное меню закрываем штатным путём (клик по подложке), иначе оно останется открытым.
+    if ($("#side").classList.contains("open")) $("#scrim").click();
+    open();
   });
 
   let seen = false;
