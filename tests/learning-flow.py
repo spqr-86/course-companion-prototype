@@ -9,8 +9,51 @@ CHROME = os.environ.get("CC_CHROME")
 OUT = Path(os.environ.get("CC_SCREENSHOTS", "/tmp/cc-ux-03"))
 OUT.mkdir(parents=True, exist_ok=True)
 
+def learn_unit(page):
+    """Unit-проверки ядра Learn (без DOM): заглушка проверки, статусы, хранение."""
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(BASE, wait_until="networkidle")
+    page.evaluate("localStorage.removeItem('cc-preview-0.4')")
+    page.reload(wait_until="networkidle")
+    R = {"minWords": 15, "concepts": [["инерция", "инертн"], ["равнодействующ", "сумма сил"]]}
+    g = lambda t: page.evaluate("([t, r]) => Learn.grade(t, r)", [t, R])
+    assert g("")["reason"] == "short"
+    assert g("   ")["reason"] == "short"
+    assert g("тело сохраняет скорость")["reason"] == "short"
+    # 15+ слов без обоих понятий
+    none = g("тело сохраняет свою скорость пока на него ничего не действует и это очень важно для понимания законов движения")
+    assert none["reason"] == "missing" and none["missing"] == ["инерция", "равнодействующ"], none
+    # есть «равнодействующая», нет инерции -> missing == ["инерция"]
+    one = g("тело движется равномерно когда равнодействующая сил равна нулю и это очень важно для понимания законов движения тел")
+    assert one["reason"] == "missing" and one["missing"] == ["инерция"], one
+    # формы слов: «инерцией», «равнодействующая»
+    ok = g("по закону движения тело сохраняет скорость за счёт инерцией пока равнодействующая сил равна нулю и это важно")
+    assert ok["ok"] is True and ok["reason"] == "ok", ok
+    cn = lambda s: page.evaluate("(s) => Learn.checkNumber(s, 2.5, 0.05)", s)
+    assert cn("2,5") and cn("2.5 м/с²")
+    assert not cn("3") and not cn("")
+    page.evaluate("Learn.setStatus('shad:1','self'); Learn.setStatus('shad:1','seen')")
+    assert page.evaluate("Learn.state().status['shad:1']") == "self"
+    assert page.evaluate("Learn.key('shad', 4)") == "shad:4"
+    assert page.evaluate("Learn.progress('shad', [1, 2])") == {"self": 1, "total": 2}
+    assert page.evaluate("Learn.state().last") is None
+    page.evaluate("Learn.touch({lecture:'shad',unit:4,kind:'section',route:'lecture-tools-mcp'})")
+    page.reload(wait_until="networkidle")
+    assert page.evaluate("Learn.state().last.unit") == 4
+    assert page.evaluate("Learn.state().status['shad:1']") == "self"
+    page.evaluate("localStorage.setItem('cc-preview-0.4', '{bad')")
+    page.reload(wait_until="networkidle")
+    assert page.evaluate("Learn.state().status") == {}
+    assert not errors, errors
+    print("PASS learn_unit", flush=True)
+
+
 with sync_playwright() as p:
     browser = p.chromium.launch(**({"executable_path": CHROME} if CHROME else {}))
+    unit_ctx = browser.new_context(viewport={"width": 1024, "height": 800})
+    learn_unit(unit_ctx.new_page())
+    unit_ctx.close()
     for width, theme in [(390, "light"), (1440, "light"), (390, "dark")]:
         if os.environ.get("CC_ONLY") and os.environ["CC_ONLY"] != f"{width}-{theme}":
             continue
