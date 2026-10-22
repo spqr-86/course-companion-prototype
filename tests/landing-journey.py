@@ -1,0 +1,63 @@
+from pathlib import Path
+import sys
+import os
+from playwright.sync_api import sync_playwright,expect
+# ANCHOR: Verify storyboard choices, revision differences, acceptance and independent note storage.
+out=Path(os.environ.get('CC_SCREENSHOTS','/tmp/cc-landing-journey'))
+out.mkdir(parents=True,exist_ok=True)
+with sync_playwright() as p:
+ b=p.chromium.launch(args=['--no-sandbox'])
+ for width in ([int(sys.argv[1])] if len(sys.argv)>1 else [390,768,1440]):
+  c=b.new_context(viewport={'width':width,'height':900},reduced_motion='reduce')
+  page=c.new_page();errors=[]
+  page.on('pageerror',lambda e:errors.append(str(e)))
+  page.goto(os.environ.get('CC_BASE_URL','http://127.0.0.1:8896/landing/'),wait_until='networkidle')
+  page.locator('.hero-actions .primary').click()
+  expect(page.locator('#journey-stage')).to_contain_text('Что вы сейчас изучаете?')
+  page.locator('[data-j-action=files]').click()
+  expect(page.locator('.j-input-example')).to_contain_text('tools.ipynb')
+  page.screenshot(path=str(out/f'hero-{width}.png'),full_page=True)
+  page.locator('[data-j-action=next]').click()
+  expect(page.locator('.j-task')).to_contain_text('повторном вызове')
+  page.locator('[data-j-action=next]').click()
+  page.locator('[data-j-action=simple]').click()
+  expect(page.locator('.j-inline-answer')).to_contain_text('не возвращать место повторно')
+  page.locator('[data-j-action=source]').click()
+  expect(page.locator('.j-inline-answer code')).to_be_visible()
+  page.locator('[data-j-action=next]').click()
+  page.locator('[data-j-action=plan]').click()
+  page.locator('#j-show-code').uncheck()
+  page.locator('[data-j-action=next]').click()
+  expect(page.locator('.j-scenes')).to_contain_text('Исполнитель запускает функцию')
+  expect(page.locator('.j-scenes code')).to_have_count(0)
+  page.locator('[data-j-action=edit]').click()
+  page.locator('#j-wish').fill('Покажите повторный вызов без кода <script>test</script>')
+  page.locator('[data-j-action=revision]').click()
+  expect(page.locator('.j-v2')).to_be_visible()
+  expect(page.locator('blockquote')).to_contain_text('<script>test</script>')
+  assert page.locator('blockquote script').count()==0
+  page.locator('[data-j-version="1"]').click()
+  expect(page.locator('.j-scenes')).to_be_visible()
+  page.locator('[data-j-version="2"]').click()
+  expect(page.locator('.j-v2')).to_be_visible()
+  page.locator('#journey-workspace').screenshot(path=str(out/f'compare-{width}.png'))
+  page.locator('[data-j-action=accept]').click()
+  expect(page.locator('.j-saved-artifact')).to_contain_text('версия 2')
+  page.locator('#j-note').fill('Мой вывод: повторная отмена не меняет число мест.')
+  expect(page.locator('#j-save-status')).to_contain_text('Сохранено')
+  page.locator('[data-j-action=backVersions]').click()
+  page.locator('[data-j-version="1"]').click()
+  page.locator('[data-j-action=accept]').click()
+  expect(page.locator('.j-saved-artifact')).to_contain_text('версия 1')
+  expect(page.locator('#j-note')).to_have_value('Мой вывод: повторная отмена не меняет число мест.')
+  page.reload(wait_until='networkidle')
+  page.locator('[data-j-step="6"]').click()
+  expect(page.locator('#j-note')).to_have_value('Мой вывод: повторная отмена не меняет число мест.')
+  page.locator('#journey-workspace').screenshot(path=str(out/f'notes-{width}.png'))
+  for i in range(7):
+   page.locator(f'[data-j-step="{i}"]').click()
+   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(width,i)
+  assert not errors,errors
+  print('PASS',width,'all steps, choices, plan, safe custom feedback, actual revision difference, acceptance, note preservation/reload, no overflow/errors',flush=True)
+  c.close()
+ b.close()
