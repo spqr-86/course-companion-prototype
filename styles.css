@@ -1164,7 +1164,6 @@ textarea.understood, textarea.check-answer { width: 100%; box-sizing: border-box
 .phys-notes, .phys-source, .phys-notes section { min-width:0; }
 .phys-notes > section[data-phys-unit] { margin: 0 0 36px; padding:0 0 26px; border-bottom:1px solid var(--line,#9995); }
 .phys-notes h2 { scroll-margin-top:76px; }
-.phys-layer { display:flex; gap:6px; margin:5px 0 10px; align-items:center; }
 .phys-version-content { font-family: 'Literata',serif; font-size: 1rem; line-height:1.75; overflow-wrap:anywhere; }
 .phys-figure { max-width:440px; margin:18px auto; color:var(--ink,currentColor); }
 .force-svg { width:100%; height:auto; display:block; }

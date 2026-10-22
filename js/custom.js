@@ -692,8 +692,9 @@
       return;
     }
     if ((el = on("[data-reset-demo]"))) {
-      if (!confirm("Сбросить правки, карточки и заявки этого прототипа в этом браузере?")) return;
-      st = blank(); save(); location.reload();
+      if (!confirm("Сбросить правки, заметки, учебный прогресс, карточки и заявки этого прототипа в этом браузере?")) return;
+      window.LearnUI?.dispose?.();
+      st = blank(); save(); window.Learn?.reset(); location.reload();
     }
   });
 

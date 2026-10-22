@@ -11,6 +11,7 @@
   const position = (unit,kind='section') => ({lecture:'physics',unit,kind,route:kind === 'section' ? 'physics-'+unit : 'physics'});
   let hitTimer = null;
   let wired = false;
+  let onProgress = null;
   function refs(md) {
     return md.replace(/\[\[src:([a-zA-Z0-9_-]+)\]\]/g, (all,id) => {
       const s = source(id);
@@ -32,7 +33,7 @@
     const has={orig:true,simple:!!v.simple,rewrite:!!v.rewrite,mine:own!=null};
     const active=has[v.active]?v.active:'orig';
     const names={orig:'Оригинал',simple:'Проще (ИИ)',rewrite:'Переписано (ИИ)',mine:'Моя версия'};
-    const text=active==='orig'?previewMd(refs(section.ref)):active==='mine'?previewMd(esc(own)):previewMd(esc(txt(section.n, active)));
+    const text=active==='orig'?previewMd(refs(section.ref)):`<p>${esc(active==='mine'?own:txt(section.n,active)).replace(/\n/g,'<br>')}</p>`;
     const tab=$(`#phys-version-${section.n}`);
     if (!tab) return;
     tab.innerHTML=`<div class="vtabs" role="tablist" aria-label="Версии раздела">${Object.keys(has).filter(t=>has[t]).map(t=>`<button type="button" role="tab" data-phy-version="${t}" data-phy-n="${section.n}" aria-selected="${t===active}" tabindex="${t===active?0:-1}">${names[t]}</button>`).join('')}<span class="vtab-origin">${active==='mine'?'моя заметка':active==='orig'?'объяснение ИИ':'объяснение ИИ · демо'}</span></div><div class="phys-version-content">${text}</div>`;
@@ -71,9 +72,9 @@
     const r=p.kind==='calc' || similar
       ? {ok:L().checkNumber(value,similar?p.similar.answer:p.answer,similar?p.similar.tol:p.tol),reason:'missing',missing:['числовой ответ']}
       : L().grade(value,p.rule);
-    if (r.ok && p.similar && !similar && problemState(p).revealed >= 2) {
+    if (r.ok && !similar && problemState(p).revealed >= 2) {
       // Скопированный после раскрытия расчёт не равен самостоятельной проверке.
-      return {ok:false,reason:'missing',missing:['После просмотра решения проверьте себя на похожей задаче']};
+      return {ok:false,reason:'missing',missing:[p.similar ? 'После просмотра решения проверьте себя на похожей задаче' : 'Решение уже показано; этот ответ выполнен с помощью']};
     }
     if (r.ok) updateProblem(p,similar?{similarSolved:true,solved:'self'}:{solved:'self'});
     return r;
@@ -116,18 +117,18 @@
     const progress=L().progress('physics',[1,2,3,4,5,'q1','r1']);
     el.innerHTML=`<div class="page physics-page">
       <nav class="crumbs" aria-label="Путь"><a href="#library">Библиотека</a><span>/</span><span>Физика · учебник</span></nav>
-      <div class="phys-head"><div class="eyebrow">Школьная физика · 9 класс · без видео</div><h1 class="page-title">Законы Ньютона</h1><p class="lead">Русский конспект рядом с короткими фрагментами оригинального учебника OpenStax.</p><p class="hint">${progress.self} из ${progress.total} · воспроизвёл сам</p></div>
+      <div class="phys-head"><div class="eyebrow">Школьная физика · 9 класс · без видео</div><h1 class="page-title">Законы Ньютона</h1><p class="lead">Русский конспект рядом с короткими фрагментами учебника OpenStax в редакции LibreTexts.</p><p class="hint">${progress.self} из ${progress.total} · воспроизвёл сам</p></div>
       <nav class="phys-toc" aria-label="Разделы физики">${data.sections.map(s=>`<a href="#physics-${s.n}">${s.n}. ${esc(s.title)}</a>`).join('')}<a href="#physics" data-go-problems>Задачи</a></nav>
       <div class="phys-layout"><div id="phys-notes" class="phys-notes">
-        ${data.sections.map(s=>`<section id="phys-section-${s.n}" data-phys-unit="${s.n}"><h2 data-unit="${s.n}">${s.n}. ${esc(s.title)}</h2><div class="phys-layer"><span class="uorigin uorigin--ai">объяснение ИИ</span><span class="hint">· редакционный демо-конспект</span></div><div id="phys-version-${s.n}"></div>
-        ${s.figure?`<figure class="phys-figure">${s.figure}<figcaption>Схема сил · демо</figcaption></figure>`:''}
+        ${data.sections.map(s=>`<section id="phys-section-${s.n}" data-phys-unit="${s.n}"><h2 data-unit="${s.n}">${s.n}. ${esc(s.title)}</h2><div id="phys-version-${s.n}"></div>
+        ${s.figure?`<figure class="phys-figure">${s.figure}<figcaption>${esc(s.n===2 ? "Скорость при нулевой равнодействующей" : "Схема сил")} · демо</figcaption></figure>`:''}
         <button class="btn btn--small" type="button" data-phy-quote="${s.n}" aria-controls="phys-quote-${s.n}">Оригинал рядом</button>
         <blockquote class="src-quote" id="phys-quote-${s.n}" hidden lang="en">${s.quotes.map(id=>`<span>${esc(source(id)?.html||'')} <a href="${esc(source(id)?.url)}" target="_blank" rel="noopener">§ ${esc(source(id)?.page)}</a></span>`).join(' ')}</blockquote>
         <div class="phys-actions"><button type="button" class="btn btn--small" data-phy-action="simple" data-phy-n="${s.n}">Объяснить</button><button type="button" class="btn btn--small" data-phy-action="example" data-phy-n="${s.n}">Показать на примере</button><button type="button" class="btn btn--small" data-phy-action="check" data-phy-n="${s.n}">Проверить себя</button><details><summary>Ещё</summary><button type="button" data-phy-action="rewrite" data-phy-n="${s.n}">Переписать иначе</button><button type="button" data-phy-action="mine" data-phy-n="${s.n}">Моя версия</button></details></div><div class="phys-example" hidden></div>
         </section>`).join('')}
         <section id="phys-problems"><h2>Проверь понимание на задачах</h2><p class="hint">Проверка ответов — демо-заглушка, не ИИ.</p>${data.problems.map(makeProblem).join('')}</section>
       </div>
-      <details id="phys-source" class="phys-source" open><summary>Учебник · OpenStax Physics</summary><div class="phys-source-inner"><p class="hint">Цитаты на английском. ${esc(data.meta.pageNote)}</p>${data.source.map(s=>`<article id="src-${esc(s.id)}" class="phys-source-entry"><div class="uorigin">из источника</div><h3>§ ${esc(s.page)} · ${esc(s.heading)}</h3><blockquote lang="en">${esc(s.html)}</blockquote><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Читать в OpenStax ↗</a></article>`).join('')}</div></details>
+      <details id="phys-source" class="phys-source" open><summary>Учебник · LibreTexts / OpenStax</summary><div class="phys-source-inner"><p class="hint">Цитаты на английском. ${esc(data.meta.pageNote)}</p>${data.source.map(s=>`<article id="src-${esc(s.id)}" class="phys-source-entry"><div class="uorigin">из источника</div><h3>§ ${esc(s.page)} · ${esc(s.heading)}</h3><blockquote lang="en">${esc(s.html)}</blockquote><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Читать в LibreTexts ↗</a></article>`).join('')}</div></details>
       </div>
       <footer class="phys-attribution"><p>${esc(data.meta.attribution)}</p><p><a href="${esc(data.meta.url)}" target="_blank" rel="noopener noreferrer">Источник ↗</a> · <a href="${esc(data.meta.licenseUrl)}" target="_blank" rel="noopener noreferrer">Условия и атрибуция ↗</a></p></footer>
       </div>`;
@@ -140,12 +141,20 @@
       block.addEventListener('input',()=>L().touch(position(s.n)));
     });
     data.problems.forEach(problemView);
+    const refreshProgress = () => {
+      const p = L().progress('physics',[1,2,3,4,5,'q1','r1']);
+      const label = $('.phys-head .hint');
+      if (label) label.textContent = `${p.self} из ${p.total} · воспроизвёл сам`;
+    };
+    window.addEventListener('cc:learn', refreshProgress);
+    onProgress = refreshProgress;
     if (!wired) {
       wired = true;
       el.addEventListener('click',handleClick);
       el.addEventListener('input',handleInput);
       el.addEventListener('keydown',handleKeys);
     }
+    window.scrollTo(0,0);
     if(r.startsWith('physics-')) requestAnimationFrame(()=>goSection(+r.slice(8)));
     el.focus({preventScroll:true});
   }
@@ -222,7 +231,10 @@
       if(p){p.scrollIntoView({block:'start'});$('textarea',p)?.focus({preventScroll:true});}
     } else {
       const section=document.getElementById('phys-section-'+last.unit);
-      if(section){section.scrollIntoView({block:'start'});$('.understand textarea.understood',section)?.focus({preventScroll:true});}
+      if(section){
+        const answer=$(L().state().checks?.['physics:'+last.unit]?.open ? '.check-answer' : '.understood',section);
+        answer?.scrollIntoView({block:'center'});answer?.focus({preventScroll:true});
+      }
     }
   }
   function dispose() {
@@ -232,6 +244,7 @@
     el?.removeEventListener('input',handleInput);
     el?.removeEventListener('keydown',handleKeys);
     wired = false;
+    window.removeEventListener('cc:learn', onProgress);
     window.LearnUI?.dispose?.();
   }
   window.Physics={render,resume,showSource,dispose};

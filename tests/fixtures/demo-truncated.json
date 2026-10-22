@@ -1,0 +1,43 @@
+{
+  "id": "recorded-truncated-response",
+  "object": "chat.completion",
+  "created": 1792685440,
+  "model": "google/gemini-3.7-flash",
+  "system_fingerprint": null,
+  "service_tier": "provisioned",
+  "choices": [
+    {
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "length",
+      "native_finish_reason": "MAX_TOKENS",
+      "message": {
+        "role": "assistant",
+        "content": "Ярким примером ограничения языковой модели без инструментов выступает математический расчет. При вычислении система выдает ошибочный результат 8293 вместо правильного ответа 8"
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 240,
+    "completion_tokens": 1020,
+    "total_tokens": 1260,
+    "cost": 0.004005,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.004005,
+      "upstream_inference_prompt_cost": 0.00018,
+      "upstream_inference_completions_cost": 0.003825
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 980,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  }
+}

@@ -15,6 +15,7 @@
     const hint = (result.hint || []).join(", ");
     let text;
     if (result.disputed) text = "Тебе виднее: засчитано по оспариванию.";
+    else if (result.ok) text = "Зачтено.";
     else if (result.reason === "short") text = "Слишком коротко, раскрой: " + (hint || "главную мысль") + ".";
     else if (result.reason === "missing") text = "Не хватает: " + (result.missing || []).join(", ") + ".";
     else text = "Зачтено.";
@@ -71,7 +72,7 @@
       </div>
       <div class="check-result" aria-live="polite"></div>` : ""}`;
     if (next) next.before(block); else h2.parentNode.appendChild(block);
-    h2.insertAdjacentHTML("afterend", `<div class="layer-tag"><span class="uorigin uorigin--ai">объяснение ИИ</span></div>`);
+    if (opts.lecture !== 'physics') h2.insertAdjacentHTML("afterend", `<div class="layer-tag"><span class="uorigin uorigin--ai">объяснение ИИ</span></div>`);
 
     const ta = $("textarea.understood", block), st = $(".ustatus", block);
     ta.value = (L.state().understood || {})[k] || "";
@@ -96,11 +97,17 @@
 
     if (rule) {
       const box = $(".check", block), res = $(".check-result", block);
+      const answer = $("textarea.check-answer", block);
+      const saved = L.state().checks[k] || {};
+      answer.value = typeof saved.draft === 'string' ? saved.draft : '';
+      const saveCheck = open => L.save({checks:{...L.state().checks,[k]:{draft:answer.value,open}}});
       const collapse = on => {
         block.classList.toggle("checking", on);
         box.hidden = !on;
         layer(h2, block).forEach(n => { n.hidden = on; });
+        saveCheck(on);
       };
+      answer.addEventListener('input', () => { touch(); saveCheck(true); });
       block._openCheck = () => { touch(); collapse(true); $("textarea.check-answer", block).focus({ preventScroll: true }); };
       $("[data-check-open]", block).addEventListener("click", block._openCheck);
       $("[data-check-close]", block).addEventListener("click", () => collapse(false));
@@ -116,6 +123,7 @@
         renderVerdict(res, r, { onDispute: dispute });
         if (r.ok) { L.setStatus(k, "self"); collapse(false); }
       });
+      if (saved.open) collapse(true);
     }
     observeSeen(block, k);
     return block;

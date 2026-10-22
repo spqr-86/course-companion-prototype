@@ -1,4 +1,5 @@
 """E2E checks for tasks 6–8 and 10. Task 9 remains separately red until local generation."""
+# ANCHOR: Real browser regressions for physics answers, saved work and return navigation.
 from playwright.sync_api import expect
 
 LONG2 = ('По первому закону Ньютона инерция означает сохранение скорости тела: когда равнодействующая '
@@ -30,6 +31,7 @@ def physics_ui(page, base):
     page.goto(base + '#library',wait_until='networkidle')
     expect(page.locator('[data-course-physics]')).to_be_visible()
     page.locator('[data-course-physics]').click()
+    expect(page.locator('.phys-head h1')).to_be_in_viewport()
     expect(page.locator('#phys-notes section[data-phys-unit] > h2')).to_have_count(5)
     link=page.locator('.src-link').first
     source_id=link.get_attribute('data-src')
@@ -85,6 +87,28 @@ def physics_problems(page,base):
     print('PASS physics_problems',flush=True)
 
 
+def physics_regressions(page, base):
+    page.goto(base+'#physics', wait_until='networkidle')
+    root = page.locator('#phys-problem-r1')
+    root.locator('textarea').fill('2,5 м/с²')
+    root.locator('[data-phy-check]').click()
+    expect(root.locator('.verdict')).to_contain_text('Зачтено')
+    assert page.evaluate("Learn.state().status['physics:r1']") == 'self'
+    # Уже показанное решение нельзя выдать за самостоятельный ответ.
+    q = page.locator('#phys-problem-q1')
+    q.locator('[data-reveal]').click()
+    q.locator('[data-reveal]').click()
+    q.locator('textarea').fill(LONG_Q)
+    q.locator('[data-phy-check]').click()
+    expect(q.locator('.phys-pstatus')).to_have_text('решено с решением')
+    assert page.evaluate("Learn.state().status['physics:q1']") == 'solved'
+    # Прогресс на самой странице меняется без перезагрузки.
+    expect(page.locator('.phys-head .hint')).to_contain_text('1 из 7')
+    page.locator('#side-nav [data-go-problems]').evaluate('(a) => a.click()')
+    expect(page.locator('#phys-problems')).to_be_in_viewport()
+    print('PASS physics_regressions', flush=True)
+
+
 def continue_flow(page,base):
     page.goto(base+'#library',wait_until='networkidle')
     expect(page.locator('.continue')).to_contain_text('Начать')
@@ -96,6 +120,34 @@ def continue_flow(page,base):
     page.locator('[data-continue]').click()
     expect(page.locator('#phys-problem-r1')).to_be_visible()
     print('PASS continue_flow',flush=True)
+
+
+def check_resume(page, base):
+    page.goto(base+'#physics-2', wait_until='networkidle')
+    section = page.locator('#phys-section-2')
+    section.locator('[data-check-open]').click()
+    section.locator('.check-answer').fill('Инерция сохраняет скорость; допишу мысль позже')
+    page.reload(wait_until='networkidle')
+    expect(section.locator('.check-answer')).to_be_visible()
+    expect(section.locator('.check-answer')).to_have_value('Инерция сохраняет скорость; допишу мысль позже')
+    page.goto(base+'#library', wait_until='networkidle')
+    page.locator('[data-continue]').click()
+    expect(section.locator('.check-answer')).to_be_focused()
+    expect(section.locator('.check-answer')).to_be_in_viewport()
+    print('PASS check_resume', flush=True)
+
+
+def reset_learning(page, base):
+    page.goto(base+'#physics', wait_until='networkidle')
+    page.locator('#phys-section-2 .understood').fill('Мой черновик, который нужно сбросить')
+    page.locator('#phys-problem-r1 [data-rung-next]').click()
+    page.on('dialog', lambda dialog: dialog.accept())
+    page.locator('[data-reset-demo]').click()
+    page.wait_for_function("Object.keys(Learn.state().problems).length === 0 && Object.keys(Learn.state().understood).length === 0")
+    assert page.evaluate('Learn.state().problems') == {}
+    assert page.evaluate('Learn.state().understood') == {}
+    assert page.evaluate('Learn.state().last') is None
+    print('PASS reset_learning', flush=True)
 
 
 def responsiveness(page,base):
@@ -112,7 +164,7 @@ def run_all(browser,base,onboarded):
     context=browser.new_context(viewport={'width':1024,'height':844})
     context.add_init_script(onboarded)
     # Изолированные страницы, чтобы экспериментальные статусы не загрязняли следующие проверки.
-    for runner in (physics_data,physics_ui,physics_problems,continue_flow):
+    for runner in (physics_data,physics_ui,physics_problems,continue_flow,physics_regressions,check_resume,reset_learning):
         page=context.new_page()
         page.goto(base,wait_until='networkidle')
         page.evaluate("localStorage.removeItem('cc-preview-0.4')")

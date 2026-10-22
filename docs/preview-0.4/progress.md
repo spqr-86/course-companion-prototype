@@ -75,3 +75,18 @@ Task 7–8: local overlay implementation prepared; tests/preview04_extra.py adde
 Task 9: waiting for Petr's run — tools/gen_demo_ai.py must not be executed by agent; red test expected.
 Task 10–11: local overlay prepared; full project test and visual review not verified, no false PASS claimed.
 Ruling: изменение подготовлено локально из-за отсутствия checkout и полных интеграционных тестов — цена: для просмотра в preview-0.4 требуется применить overlay в рабочем checkout.
+
+## Codex: проверка загруженного cf440da, 22.10.2026
+
+Task 6: complete — источник заменён на редакцию LibreTexts University Physics, CC BY 4.0;
+цитаты сверены, атрибуция видна. Ruling: web § вместо PDF pages — неподтверждённые страницы не заявляем.
+Task 7–8: complete — фактический прогон, исправлены вердикты, самостоятельность, обновление прогресса,
+переход к задачам, схемы третьего закона и термин «сила тяжести».
+Task 10: complete — заметки и незавершённая проверка восстанавливаются через карточку;
+черновик проверки сохраняется сразу, сброс очищает оба хранилища.
+Task 11: UI checks complete — learning-flow 17 PASS / ux-smoke 109 PASS / offline generator 3 PASS;
+скриншоты просмотрены на 390 dark, 1024 и 1440 light. README обновлён.
+Task 9: partial, waiting for budget decision — 23/52 заготовок; подтверждено $0.05792325,
+с резервом на остановленный запрос до $0.066711. Оценка полного набора выше $0.10.
+Task 9 check остаётся красной; это не основание объявлять всё превью завершённым.
+Подробности и разбор deferred: docs/preview-0.4/verification.md. Push/merge/main ещё не выполнены.

@@ -214,14 +214,16 @@ with sync_playwright() as p:
         check(prefix + " reopens from menu", page.locator("#onb-modal").is_visible())
         page.keyboard.press("Escape")
         check(prefix + " sidebar drawer closed after reopen", not page.evaluate("document.querySelector('#side').classList.contains('open')"))
-        page.locator("[data-open-onboarding]:visible").first.click() if width > 390 else (page.locator("#menu-btn").click(), page.locator("[data-open-onboarding]:visible").first.click())
-        page.locator("[data-onb=shad]").click()
+        if width == 390:
+            page.locator("#menu-btn").click()
+        page.locator("[data-open-onboarding]:visible").first.click()
+        page.locator("#onb-modal [data-onb=shad]").click()
         page.wait_for_timeout(200)
         check(prefix + " shad button sets hash", page.evaluate("/^#(lecture|tools-mcp)/.test(location.hash)"))  # лекция сама уточняет хэш до раздела
         if width == 390:
             page.locator("#menu-btn").click()
         page.locator("[data-open-onboarding]:visible").first.click()
-        page.locator("[data-onb=physics]").click()
+        page.locator("#onb-modal [data-onb=physics]").click()
         page.wait_for_timeout(200)
         check(prefix + " physics button sets hash", page.evaluate("location.hash") == "#physics")
         check(prefix + " physics button closes dialog", not page.locator("#onb-modal").is_visible())

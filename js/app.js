@@ -64,7 +64,7 @@
     const lectures = C.course.modules.flatMap(m => m.lectures);
     if (route.startsWith("physics")) {
       $("#side-nav").innerHTML = `<a href="#library">Библиотека</a>
-        <div class="group">Школьная физика · OpenStax</div>
+        <div class="group">Школьная физика · LibreTexts</div>
         <a href="#physics"${route === "physics" ? ' aria-current="page"' : ""}>Законы Ньютона · обзор</a>
         ${CCPhysics.sections.map(x => `<a href="#physics-${x.n}"${route === "physics-" + x.n ? ' aria-current="page"' : ""}>${x.n}. ${esc(x.title)}</a>`).join("")}
         <a href="#physics" data-go-problems>Задачи</a>`;
@@ -72,7 +72,7 @@
     }
     if (route === "library") {
       $("#side-nav").innerHTML = `<a href="#library" aria-current="page">Библиотека</a>
-        <div class="group">Мои курсы</div><a href="#course-shad">Неделя агентов 2026</a>`;
+        <div class="group">Мои курсы</div><a href="#course-shad">Неделя агентов 2026</a><a href="#physics">Законы Ньютона</a>`;
       return;
     }
     $("#side-nav").innerHTML = `
@@ -129,12 +129,14 @@
       : last.kind==="problem" ? `Задача ${String(last.unit).toUpperCase()}`
       : (titles[+last.unit-1] || `Раздел §${last.unit}`);
     const u=st.understood || {}, p=(st.problems||{})["physics:"+last.unit] || {};
+    const check=st.checks?.[`${last.lecture}:${last.unit}`];
     const draft=last.kind==="lab" ? (u["shad:L01:draft"] || u["shad:L01"] || "")
       : last.kind==="problem" ? (p.rung ? `шаг подсказки ${p.rung}` : (p.draft || ""))
+      : check?.open ? check.draft
       : (u[`${last.lecture}:${last.unit}`] || "");
     const units=last.lecture==="physics" ? [1,2,3,4,5,"q1","r1"] : [1,2,3,4,5,6,7,8,9,10];
     const pending=units.find(unit=>(st.status||{})[`${last.lecture}:${unit}`]!=="self");
-    const remain=pending==null?"Все проверки выполнены":`Осталось: ${typeof pending==="number" ? "раздел §"+pending : "задача "+pending}`;
+    const remain=check?.open ? `Осталось: завершить проверку раздела §${last.unit}` : pending==null?"Все проверки выполнены":`Осталось: ${typeof pending==="number" ? "раздел §"+pending : "задача "+pending}`;
     return {last,title,draft:clip(draft,120),remain};
   }
   function renderContinue(course=false) {
@@ -156,7 +158,7 @@
       if(last.route === "lecture-tools-mcp" && S.data) S.pendingSeek=S.data.chapters.find(x=>x.notes_section===+last.unit)?.t ?? null;
       if(window.CCApp && S.lectureMounted) goNotes(+last.unit);
       const block=$(`.understand[data-unit="${last.unit}"]`);
-      if(block) { block.scrollIntoView({block:"start"}); $("textarea.understood",block)?.focus({preventScroll:true}); }
+      if(block) { block.scrollIntoView({block:"start"}); $(Learn.state().checks?.[`shad:${last.unit}`]?.open ? "textarea.check-answer" : "textarea.understood",block)?.focus({preventScroll:true}); }
     } else if(last.kind==="lab") {
       if(S.lab && last.mode) $("[data-group=mode] [data-v="+last.mode+"]")?.click();
       const t=$(".lab-explain textarea"); if(t){t.scrollIntoView({block:"center"});t.focus({preventScroll:true});}
@@ -197,7 +199,7 @@
   <div class="cards">
     <a class="ccard" href="#physics" data-course-physics>
       <div class="ccard-cover">${cover(190, 6)}</div>
-      <div class="ccard-body"><div class="ccard-org">OpenStax · учебник · 9 класс</div>
+      <div class="ccard-body"><div class="ccard-org">LibreTexts · учебник · 9 класс</div>
         <h3>Законы Ньютона · школьная физика</h3><p class="note">5 разделов, сверка с источником и 2 задачи с подсказками</p>
         <div class="bar"><div class="bar-row"><span>Самостоятельно проверено</span><span>${Learn.progress("physics",[1,2,3,4,5,"q1","r1"]).self} из 7</span></div></div>
       </div></a>
@@ -1035,6 +1037,11 @@
     if (r === "course-shad" || r === "course-requests") renderCourse(r === "course-requests" ? "requests" : "overview", true);
   });
   document.addEventListener("click", e => {
+    if (e.target.closest('#side-nav [data-go-problems]')) {
+      e.preventDefault(); closeSide();
+      document.getElementById('phys-problems')?.scrollIntoView({block:'start'});
+      return;
+    }
     const c=e.target.closest("[data-continue]"); if(!c)return;
     const last=Learn.state().last; if(!last)return;
     if(last.lecture==="shad" && last.kind==="section" && last.route==="lecture-tools-mcp") S.pendingSeek=C.moments.idempotency.t;

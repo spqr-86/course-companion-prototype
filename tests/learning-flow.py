@@ -321,7 +321,7 @@ with sync_playwright() as p:
         page.locator("#view a[href='#course-shad']").first.click()
         expect(page.locator(".course-resume")).to_be_visible()
         shot("course")
-        page.locator(".course-resume").click()
+        page.locator(".course-resume [data-onb=shad], a.course-resume").first.click()
         page.wait_for_selector(".player")
         page.wait_for_timeout(800)
         shot("video")

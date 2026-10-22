@@ -2,7 +2,7 @@
 (function () {
   const KEY = "cc-preview-0.4";
   const ORDER = ["seen", "helped", "solved", "self"]; // статус не понижается
-  const empty = () => ({ onboarded: false, status: {}, understood: {}, disputed: {}, versions: {}, problems: {}, lab: {}, last: null });
+  const empty = () => ({ onboarded: false, status: {}, understood: {}, disputed: {}, versions: {}, problems: {}, lab: {}, checks: {}, last: null });
   let cache = null;
 
   // Любой доступ к localStorage — в try/catch: приватный режим и битый JSON не должны ронять страницу.
