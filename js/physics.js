@@ -18,6 +18,13 @@
       return s ? `<button type="button" class="src-link" data-src="${esc(id)}" aria-label="Сверить с источником, раздел ${esc(s.page)}">§ ${esc(s.page)}</button>` : all;
     });
   }
+  // Лёгкая разметка заготовок: только текст, выделения и проверенные ссылки источника.
+  // Произвольные HTML, изображения и URL из ответа модели не исполняются.
+  const readable = value => refs(esc(value)
+    .replace(/\$\\Sigma\s*F\s*=\s*ma\$/g,'ΣF = ma')
+    .replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/`([^`\n]+)`/g,'<code>$1</code>')
+    .replace(/\n/g,'<br>'));
   function showSource(id) {
     const pane = $('#phys-source'), el = document.getElementById('src-'+id);
     if (!pane || !el) return;
@@ -33,7 +40,7 @@
     const has={orig:true,simple:!!v.simple,rewrite:!!v.rewrite,mine:own!=null};
     const active=has[v.active]?v.active:'orig';
     const names={orig:'Оригинал',simple:'Проще (ИИ)',rewrite:'Переписано (ИИ)',mine:'Моя версия'};
-    const text=active==='orig'?previewMd(refs(section.ref)):`<p>${esc(active==='mine'?own:txt(section.n,active)).replace(/\n/g,'<br>')}</p>`;
+    const text=active==='orig'?previewMd(refs(section.ref)):`<p>${readable(active==='mine'?own:txt(section.n,active))}</p>`;
     const tab=$(`#phys-version-${section.n}`);
     if (!tab) return;
     tab.innerHTML=`<div class="vtabs" role="tablist" aria-label="Версии раздела">${Object.keys(has).filter(t=>has[t]).map(t=>`<button type="button" role="tab" data-phy-version="${t}" data-phy-n="${section.n}" aria-selected="${t===active}" tabindex="${t===active?0:-1}">${names[t]}</button>`).join('')}<span class="vtab-origin">${active==='mine'?'моя заметка':active==='orig'?'объяснение ИИ':'объяснение ИИ · демо'}</span></div><div class="phys-version-content">${text}</div>`;
@@ -191,7 +198,7 @@
       if(btn.dataset.phyAction==='mine'){openMine(n);return;}
       if(btn.dataset.phyAction==='example'){
         const box=$(`#phys-section-${n} .phys-example`);
-        box.hidden=false;box.innerHTML=`<span class="uorigin uorigin--ai">объяснение ИИ · демо</span><p>${esc(txt(n,'example'))}</p>`;
+        box.hidden=false;box.innerHTML=`<span class="uorigin uorigin--ai">объяснение ИИ · демо</span><p>${readable(txt(n,'example'))}</p>`;
         L().setStatus(L().key('physics',n),'helped');return;
       }
       saveVersion(n,{[btn.dataset.phyAction]:true,active:btn.dataset.phyAction});

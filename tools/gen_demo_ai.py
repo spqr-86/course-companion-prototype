@@ -145,6 +145,9 @@ def request_one(api_key: str, user_prompt: str, raw_path: Path):
 
 def export_answers(state):
     answers = js_data(["data/demo-ai.js"], "CCDemoAI")
+    # У этих разделов пример открывает готовую сцену, текстовые заглушки не используются.
+    for section in ("3", "4", "11"):
+        answers["shad"]["example"].pop(section, None)
     for r in state["calls"]:
         if not r.get("success"):
             continue
@@ -384,7 +387,11 @@ def main():
             {
                 **state,
                 "ended": datetime.now(timezone.utc).isoformat(),
-                "reported_total_usd": spent,
+                "reported_total_usd": sum(
+                    r.get("cost_usd") or 0 for r in state["calls"]
+                ),
+                "known_total_usd": sum(r.get("cost_usd") or 0 for r in state["calls"]),
+                "total_upper_bound_usd": spent,
                 "expected_calls": len(list(jobs())),
             },
             ensure_ascii=False,
@@ -393,7 +400,7 @@ def main():
         encoding="utf-8",
     )
     LOG.info(
-        "Готово %s / %s; расходы (по данным API): $%.5f",
+        "Готово %s / %s; расходы с резервами: $%.5f",
         len([r for r in state["calls"] if r.get("success")]),
         len(list(jobs())),
         spent,

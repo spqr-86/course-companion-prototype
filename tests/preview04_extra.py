@@ -1,4 +1,4 @@
-"""E2E checks for tasks 6–8 and 10. Task 9 remains separately red until local generation."""
+"""E2E checks for physics, generated demo answers and return navigation."""
 # ANCHOR: Real browser regressions for physics answers, saved work and return navigation.
 from playwright.sync_api import expect
 
@@ -6,6 +6,29 @@ LONG2 = ('По первому закону Ньютона инерция озн�
          'внешних сил равна нулю, тело продолжает двигаться равномерно и прямолинейно, а не останавливается само.')
 LONG_Q = ('Инерция сохраняет скорость пассажира относительно земли, хотя автобус начинает торможение. '
           'Его тело продолжает движение вперёд, пока ремень или сиденье не изменит скорость внешней силой.')
+
+
+def demo_ai_data(page, base):
+    page.goto(base, wait_until='networkidle')
+    result = page.evaluate('''() => {
+      const a=CCDemoAI;
+      const complete = (name, nums, kind) => nums.every(n=>
+        typeof a[name][kind][n] === 'string' && a[name][kind][n].trim() &&
+        !a[name][kind][n].startsWith('[черновик]'));
+      const all=(name,nums)=>complete(name,nums,'simple')&&complete(name,nums,'rewrite');
+      return {model:a.meta.model, complete:a.meta.complete, generated:a.meta.generated,
+        expected:a.meta.expected, shad:all('shad',Array.from({length:12},(_,i)=>i+1)),
+        drafts:JSON.stringify({shad:a.shad,physics:a.physics}).includes('[черновик]'),
+        physics:all('physics',[1,2,3,4,5]),
+        shadExamples:complete('shad',[1,2,5,6,7,8,9,10,12],'example'),
+        physicsExamples:complete('physics',[1,2,3,4,5],'example'),
+        chat:[0,1,2,3].every(n=>typeof a.shad.chat[n]==='string'&&a.shad.chat[n].trim())};
+    }''')
+    assert result == {'model':'google/gemini-3.7-flash','complete':True,
+                      'generated':52,'expected':52,'shad':True,'physics':True,
+                      'drafts':False,
+                      'shadExamples':True,'physicsExamples':True,'chat':True}, result
+    print('PASS demo_ai_data: 52 generated answers, no required drafts', flush=True)
 
 
 def physics_data(page, base):
@@ -39,6 +62,9 @@ def physics_ui(page, base):
     hit=page.locator('#src-'+source_id)
     expect(hit).to_have_class(__import__('re').compile('is-hit'))
     expect(hit).to_be_visible()
+    page.locator('[data-phy-action="simple"][data-phy-n="1"]').click()
+    expect(page.locator('#phys-version-1')).not_to_contain_text('[[src:')
+    expect(page.locator('#phys-version-1 .src-link')).to_have_count(1)
     page.locator('[data-phy-quote="2"]').click()
     expect(page.locator('#phys-quote-2')).to_be_visible()
     page.locator('[data-phy-action="simple"][data-phy-n="2"]').click()
@@ -53,6 +79,10 @@ def physics_ui(page, base):
     page.locator('#phys-section-2 [data-check-submit]').click()
     expect(page.locator('#phys-section-2 .verdict')).to_contain_text('Зачтено')
     assert page.evaluate("Learn.state().status['physics:2']")=='self'
+    page.locator('#phys-section-3 .phys-actions summary').click()
+    page.locator('[data-phy-action="rewrite"][data-phy-n="3"]').click()
+    expect(page.locator('#phys-version-3 .phys-version-content')).to_contain_text('ΣF = ma')
+    expect(page.locator('#phys-version-3 .phys-version-content')).not_to_contain_text('\\Sigma')
     assert not errors, errors
     print('PASS physics_ui',flush=True)
 
@@ -164,7 +194,7 @@ def run_all(browser,base,onboarded):
     context=browser.new_context(viewport={'width':1024,'height':844})
     context.add_init_script(onboarded)
     # Изолированные страницы, чтобы экспериментальные статусы не загрязняли следующие проверки.
-    for runner in (physics_data,physics_ui,physics_problems,continue_flow,physics_regressions,check_resume,reset_learning):
+    for runner in (physics_data,physics_ui,physics_problems,continue_flow,physics_regressions,check_resume,reset_learning,demo_ai_data):
         page=context.new_page()
         page.goto(base,wait_until='networkidle')
         page.evaluate("localStorage.removeItem('cc-preview-0.4')")
