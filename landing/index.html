@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Course Companion — ваш курс, помощник рядом</title>
+  <meta name="description" content="Разберитесь в сложной теме, пройдите домашку с подсказками и соберите понятный конспект. Познакомьтесь с Course Companion на готовом примере.">
+  <meta name="theme-color" content="#f7f6f0">
+  <meta property="og:title" content="Course Companion — от «не понимаю» к «могу сам»">
+  <meta property="og:description" content="ИИ-компаньон для учёбы. Сложная тема, домашка и личный конспект — в одном пространстве курса.">
+  <meta property="og:image" content="https://spqr-86.github.io/course-companion-prototype/landing/assets/poster.jpg">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">К содержимому</a>
+<header class="header wrap">
+  <a class="brand" href="#" aria-label="Course Companion — в начало"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>Course<br>Companion</span></a>
+  <nav aria-label="Основная навигация"><a href="#possibilities">Возможности</a><a href="#film">Как это выглядит</a><a class="nav-cta" href="#try">Открыть демо <span aria-hidden="true">↗</span></a></nav>
+</header>
+<main id="main">
+  <section class="hero wrap" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <p class="eyebrow"><span class="dot"></span> ИИ-компаньон для учёбы</p>
+      <h1 id="hero-title">Ваш курс.<br><span>Помощник</span><br><em>рядом.</em></h1>
+      <p class="intro">Разобраться в сложной теме. Разобрать домашку. Собрать конспект, который понятен вам.</p>
+      <div class="hero-actions"><a class="button primary" href="#try">Попробовать на примере <span aria-hidden="true">↗</span></a><a class="watch" href="#film"><span class="play-icon" aria-hidden="true">▶</span> Посмотреть за 32 секунды</a></div>
+      <p class="micro">Готовые уроки · Без регистрации</p>
+    </div>
+    <div class="hero-art" aria-label="Пример: разбор второго закона Ньютона и личная запись в конспекте">
+      <div class="art-back"><span>От вопроса<br>к пониманию.</span><svg viewBox="0 0 250 110" aria-hidden="true"><path d="M15 76 C40 14 80 17 90 58 S137 103 159 46 S206 6 226 50"/><path d="m210 48 17 7 5-18"/></svg></div>
+      <figure class="lesson-piece"><figcaption><span class="tiny-label">ФИЗИКА · ЗАКОНЫ НЬЮТОНА</span><span aria-hidden="true">↗</span></figcaption><h2>Почему тяжёлую тележку<br>сложнее разогнать?</h2><div class="force-scene" aria-hidden="true"><span class="force-line">сила →</span><span class="cart">10 кг<i></i><i></i></span><span class="accel">a = F / m</span></div><p>При той же силе большая масса<br>даёт меньшее ускорение.</p><span class="example-label">Пример объяснения</span></figure>
+      <figure class="note-piece"><figcaption><span class="checkmark" aria-hidden="true">✓</span> Как я понял</figcaption><p>Сначала считаю сумму сил.<br>Потом делю на массу.</p><span>Мой вывод — рядом с темой</span></figure>
+      <span class="art-caption">Объяснение → попытка → свой вывод</span>
+    </div>
+  </section>
+  <section class="film-section" id="film" aria-labelledby="film-title">
+    <div class="wrap">
+      <div class="section-intro"><div><p class="eyebrow">Знакомство за полминуты</p><h2 id="film-title">Вот как это <em>выглядит.</em></h2></div><p>Один урок. Три шага<br>от вопроса к своему решению.</p></div>
+      <div class="film-frame"><video id="product-film" muted loop playsinline controls preload="metadata" poster="assets/poster.jpg" aria-label="Course Companion: объяснение темы, помощь с домашкой и личный конспект"><source src="assets/overview.mp4" type="video/mp4"><p>Видео не поддерживается. <a href="assets/overview.mp4">Скачать ролик</a>.</p></video></div>
+      <div class="film-bottom"><span><span class="live-dot"></span> Реальные экраны превью 0.4</span><button class="sound-button" id="sound" type="button" aria-pressed="false">Включить звук <span aria-hidden="true">♫</span></button></div>
+    </div>
+  </section>
+  <section class="possibilities wrap" id="possibilities" aria-labelledby="possibilities-title">
+    <div class="section-intro"><div><p class="eyebrow">Знакомые задачи. Помощник рядом.</p><h2 id="possibilities-title">Где вы <em>застряли?</em></h2></div><p>Выберите задачу —<br>посмотрите, что можно сделать.</p></div>
+    <div class="scenario-tabs" role="tablist" aria-label="Задачи в учёбе">
+      <button id="tab-topic" role="tab" aria-selected="true" aria-controls="panel-topic" type="button"><span>01</span> Сложная тема <span aria-hidden="true">↗</span></button>
+      <button id="tab-homework" role="tab" aria-selected="false" aria-controls="panel-homework" tabindex="-1" type="button"><span>02</span> Домашка <span aria-hidden="true">↗</span></button>
+      <button id="tab-notes" role="tab" aria-selected="false" aria-controls="panel-notes" tabindex="-1" type="button"><span>03</span> Конспект <span aria-hidden="true">↗</span></button>
+    </div>
+    <div id="panel-topic" class="scenario-panel" role="tabpanel" aria-labelledby="tab-topic" tabindex="0">
+      <div class="scenario-copy"><p class="scenario-question">«Читаю третий раз.<br>Всё ещё непонятно».</p><h3>Найдите объяснение,<br>которое вам подходит.</h3><p>Разберите конкретный фрагмент: попросите объяснить проще, посмотрите пример и вернитесь к источнику. Сохраните свою формулировку рядом.</p><a class="text-link" href="../#physics-3">Разобрать закон Ньютона <span aria-hidden="true">↗</span></a></div>
+      <figure class="screenshot"><div class="screenshot-label"><span>Фрагмент настоящего превью</span><span>01 / 03</span></div><img src="assets/simple.png" width="1442" height="418" alt="Вкладка Проще (ИИ): объяснение второго закона Ньютона и ссылка на источник" loading="lazy"><figcaption>Исходный материал остаётся рядом с объяснением.</figcaption></figure>
+    </div>
+    <div id="panel-homework" class="scenario-panel" role="tabpanel" aria-labelledby="tab-homework" tabindex="0" hidden>
+      <div class="scenario-copy"><p class="scenario-question">«Теорию понял.<br>С чего начать задачу?»</p><h3>Пройдите путь<br>до своего решения.</h3><p>Начните с подсказки, найдите следующий шаг и проверьте ответ. Можно раскрыть разбор решения и затем попробовать похожую задачу самостоятельно.</p><a class="text-link" href="../#physics">Попробовать задачу <span aria-hidden="true">↗</span></a></div>
+      <figure class="screenshot"><div class="screenshot-label"><span>Фрагмент настоящего превью</span><span>02 / 03</span></div><img src="assets/solved.png" width="1442" height="796" alt="Задача про тележку: подсказка, собственный ответ 2,5 м/с² и результат проверки Зачтено" loading="lazy"><figcaption>Подсказка → ваша попытка → проверка.</figcaption></figure>
+    </div>
+    <div id="panel-notes" class="scenario-panel" role="tabpanel" aria-labelledby="tab-notes" tabindex="0" hidden>
+      <div class="scenario-copy"><p class="scenario-question">«Разобрался.<br>Как не потерять мысль?»</p><h3>Соберите конспект<br>на своём языке.</h3><p>Оставляйте собственные выводы рядом с темой, дополняйте конспект полезными объяснениями. Возвращайтесь к тому месту, на котором остановились.</p><a class="text-link" href="../#physics-3">Открыть живой конспект <span aria-hidden="true">↗</span></a></div>
+      <figure class="screenshot"><div class="screenshot-label"><span>Фрагмент настоящего превью</span><span>03 / 03</span></div><img src="assets/my-note.png" alt="Поле Как я понял с личным выводом: сначала сложить силы с учётом направления, затем разделить на массу" loading="lazy"><figcaption>Ваш след понимания остаётся в материале курса.</figcaption></figure>
+    </div>
+  </section>
+  <section class="principle"><div class="wrap principle-grid"><div><p class="eyebrow">Учёба складывается в целое</p><h2>Вопрос ушёл.<br><em>Понимание осталось.</em></h2><p class="principle-lead">Всё связано с тем, что вы изучаете: исходный материал, объяснение, практика и личные заметки.</p></div><ol class="steps"><li><span>01</span><div><h3>Начните с материала</h3><p>Откройте урок и выберите фрагмент, в котором хотите разобраться.</p></div></li><li><span>02</span><div><h3>Проверьте понимание</h3><p>Перейдите от объяснения к наглядному примеру, вопросу или задаче.</p></div></li><li><span>03</span><div><h3>Оставьте свой вывод</h3><p>Запишите, как вы поняли тему, чтобы вернуться к своей мысли позже.</p></div></li></ol></div></section>
+  <section class="try wrap" id="try" aria-labelledby="try-title"><div class="section-intro"><div><p class="eyebrow">Лучше один раз попробовать</p><h2 id="try-title">Выберите свой <em>пример.</em></h2></div><p>Два готовых урока.<br>Можно открыть прямо сейчас.</p></div><div class="examples"><a class="example physics" href="../#physics"><div class="example-top"><span>Физика</span><span aria-hidden="true">↗</span></div><div class="example-symbol" aria-hidden="true">ΣF = ma</div><h3>Законы Ньютона</h3><p>Разберите силы, решите задачу<br>и сохраните своё объяснение.</p><span class="example-action">Открыть урок <span aria-hidden="true">→</span></span></a><a class="example code" href="../#lecture-tools-mcp"><div class="example-top"><span>Разработка · ШАД</span><span aria-hidden="true">↗</span></div><div class="example-symbol" aria-hidden="true">{ tools & mcp }</div><h3>Инструменты ИИ-агента</h3><p>Посмотрите разбор кода<br>и попробуйте лабораторию.</p><span class="example-action">Открыть урок <span aria-hidden="true">→</span></span></a></div><p class="demo-note">Сейчас это интерактивное превью: объяснения подготовлены заранее, проверки демонстрационные. Можно исследовать сценарии и сохранять свои заметки в браузере.</p></section>
+  <section class="faq wrap" aria-labelledby="faq-title"><div><p class="eyebrow">Перед первым шагом</p><h2 id="faq-title">Пара <em>вопросов.</em></h2></div><div class="questions"><details><summary>Можно загрузить свой курс?<span aria-hidden="true">+</span></summary><p>Пока можно познакомиться с продуктом на двух подготовленных уроках. Загрузка собственных материалов — часть дальнейшего развития, в этом превью она ещё не работает.</p></details><details><summary>Помощник решит домашку за меня?<span aria-hidden="true">+</span></summary><p>Сценарий помогает пройти задачу по шагам: получить подсказку, сделать попытку и проверить ответ. Полное решение можно открыть отдельно. После его просмотра предусмотрена похожая задача для самостоятельной проверки.</p></details><details><summary>Что будет с моими заметками?<span aria-hidden="true">+</span></summary><p>В превью они сохраняются локально в вашем браузере. Можно закрыть страницу и продолжить позже в том же браузере. Очистка данных сайта удалит заметки; между устройствами они пока не синхронизируются.</p></details></div></section>
+  <section class="closing wrap"><p>От «не понимаю»<br>к <em>«могу сам».</em></p><a class="button primary" href="#try">Начать с одного урока <span aria-hidden="true">↗</span></a></section>
+</main>
+<footer class="wrap footer"><a class="brand" href="#"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>Course Companion</span></a><span>Учиться. Разбираться. Пробовать.</span><a href="../">Превью 0.4 <span aria-hidden="true">↗</span></a></footer>
+</body></html>
