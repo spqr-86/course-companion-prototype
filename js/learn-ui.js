@@ -8,6 +8,7 @@
   const DEMO_BADGE = "Демо-проверка по ключевым словам, не ИИ";
   const STATUS = { seen: "видел", helped: "разобрался с помощью", solved: "решено с решением", self: "воспроизвёл сам" };
   let observers = [];
+  let disposers = []; // снятие глобальных слушателей при пересборке конспекта
 
   // Вердикт заглушки: текст, плашка «не ИИ» и (если не засчитано) «Оспорить». Переиспользуется лабораторией.
   function renderVerdict(container, result, opts = {}) {
@@ -60,15 +61,15 @@
     block.dataset.unit = opts.unit;
     block.setAttribute("aria-label", "Как я понял: " + (opts.title || opts.unit));
     block.innerHTML = `<div class="u-head"><b>Как я понял</b><span class="ustatus" hidden></span><span class="uorigin">моя заметка</span></div>
-      <textarea class="understood" rows="2" placeholder="${esc(PLACEHOLDER)}" aria-label="Как я понял: ${esc(opts.title || "")}"></textarea>
+      <textarea class="understood" rows="3" placeholder="${esc(PLACEHOLDER)}" aria-label="Как я понял: ${esc(opts.title || "")}"></textarea>
       ${rule ? `<div class="u-actions"><button class="btn btn--small" type="button" data-check-open>Проверить себя</button></div>
       <div class="check" hidden>
         <p class="check-q">${esc(rule.question)}</p>
         <textarea class="check-answer" rows="4" aria-label="Ответ на вопрос проверки"></textarea>
         <div class="u-actions"><button class="btn btn--small btn--primary" type="button" data-check-submit>Проверить</button>
         <button class="btn btn--small" type="button" data-check-close>Закрыть</button></div>
-        <div class="check-result" aria-live="polite"></div>
-      </div>` : ""}`;
+      </div>
+      <div class="check-result" aria-live="polite"></div>` : ""}`;
     if (next) next.before(block); else h2.parentNode.appendChild(block);
     h2.insertAdjacentHTML("afterend", `<div class="layer-tag"><span class="uorigin uorigin--ai">объяснение ИИ</span></div>`);
 
@@ -85,9 +86,10 @@
     };
     ta.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(flush, 400); });
     ta.addEventListener("blur", flush);
+    const onLearn = () => { if (document.contains(block)) badge(st, k); };
     addEventListener("pagehide", flush);
-    const onLearn = () => { if (document.contains(block)) badge(st, k); else removeEventListener("cc:learn", onLearn); };
     addEventListener("cc:learn", onLearn);
+    disposers.push(() => { removeEventListener("pagehide", flush); removeEventListener("cc:learn", onLearn); });
 
     if (rule) {
       const box = $(".check", block), res = $(".check-result", block);
@@ -128,7 +130,7 @@
     if (notes && notes.offsetParent === null) { location.hash = "tools-mcp-notes"; setTimeout(go, 450); } else go();
   }
   const hasRule = unit => !!(window.CCChecks && window.CCChecks.shad && window.CCChecks.shad[unit]);
-  function dispose() { observers.forEach(io => io.disconnect()); observers = []; }
+  function dispose() { observers.forEach(io => io.disconnect()); observers = []; disposers.forEach(f => f()); disposers = []; }
 
   window.LearnUI = { mountSection, observeSeen, renderVerdict, openCheck, hasRule, dispose, STATUS };
 })();

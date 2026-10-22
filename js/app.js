@@ -165,6 +165,7 @@
           <div class="bar">
             <div class="bar-row"><span>${c.building ? "Сборка идёт" : `${c.done} из ${c.lectures} лекций`}</span><span>${c.building ? "демо" : pct + " %"}</span></div>
             <div class="bar-track"><div class="bar-fill" style="width:${c.building ? 12 : pct}%"></div></div>
+            ${c.token ? `<div class="bar-row lib-progress"><span>${Learn.progress("shad", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).self} из 10 разделов лекции 1.2</span><span>воспроизвёл сам</span></div>` : ""}
           </div>
         </div>`;
       return c.token

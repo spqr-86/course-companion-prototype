@@ -105,6 +105,9 @@ def section_flow(page):
     u4.locator("textarea.check-answer").fill(LONG_OK4)
     u4.locator("[data-check-submit]").click()
     expect(u4.locator(".verdict")).to_contain_text("Зачтено")
+    expect(u4.locator(".verdict")).to_be_visible()
+    expect(u4.locator(".verdict .demo-badge")).to_be_visible()
+    u4.screenshot(path=str(OUT / "section-ok.png"))
     expect(u4.locator(".ustatus")).to_have_text("воспроизвёл сам")
     expect(u4).not_to_have_class("checking")
     # страница курса: 1 из 10
@@ -124,7 +127,13 @@ def section_flow(page):
     u5.locator("[data-check-dispute]").click()
     expect(u5.locator(".ustatus")).to_have_text("воспроизвёл сам")
     expect(u5.locator(".verdict")).to_contain_text("засчитано по оспариванию")
+    expect(u5.locator(".verdict")).to_be_visible()
     assert page.evaluate("Learn.state().disputed['shad:5']") is True
+    page.evaluate("location.hash='library'")
+    expect(page.locator(".lib-progress")).to_contain_text("2 из 10")
+    page.evaluate("location.hash='lecture-tools-mcp'")
+    page.evaluate("location.hash='tools-mcp-notes'")
+    page.wait_for_selector(".understand[data-unit='6']", state="attached")
     # меню фрагмента: «Проверить себя» ведёт к проверке своего раздела
     f6 = page.locator(".frag[data-sec='6']").first
     f6.scroll_into_view_if_needed()
