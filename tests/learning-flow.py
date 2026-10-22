@@ -5,6 +5,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
 
 BASE = os.environ.get("CC_BASE_URL", "http://127.0.0.1:8876/")
+ONBOARDED = "try { if (localStorage.getItem('cc-preview-0.4') === null) localStorage.setItem('cc-preview-0.4', JSON.stringify({onboarded: true})) } catch (e) {}"  # старые сценарии не видят онбординг; уже сохранённое состояние не затираем
 CHROME = os.environ.get("CC_CHROME")
 OUT = Path(os.environ.get("CC_SCREENSHOTS", "/tmp/cc-ux-03"))
 OUT.mkdir(parents=True, exist_ok=True)
@@ -52,12 +53,14 @@ def learn_unit(page):
 with sync_playwright() as p:
     browser = p.chromium.launch(**({"executable_path": CHROME} if CHROME else {}))
     unit_ctx = browser.new_context(viewport={"width": 1024, "height": 800})
+    unit_ctx.add_init_script(ONBOARDED)
     learn_unit(unit_ctx.new_page())
     unit_ctx.close()
     for width, theme in [(390, "light"), (1440, "light"), (390, "dark")]:
         if os.environ.get("CC_ONLY") and os.environ["CC_ONLY"] != f"{width}-{theme}":
             continue
         context = browser.new_context(viewport={"width": width, "height": 844}, color_scheme=theme)
+        context.add_init_script(ONBOARDED)
         page = context.new_page()
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))

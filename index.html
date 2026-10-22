@@ -31,7 +31,8 @@
     </a>
     <nav class="side-nav" id="side-nav"></nav>
     <div class="side-foot">
-      <span class="proto-pill">Прототип 0.3 · демо</span>
+      <span class="proto-pill">Превью 0.4 · демо</span>
+      <button class="link-btn" type="button" data-open-onboarding>Как это работает</button>
       <details><summary>О прототипе</summary><p>Материалы подготовлены заранее. Импорт, ответы и генерация имитируются. Правки и заявки хранятся только в этом браузере.</p></details>
       <button class="link-btn" type="button" data-reset-demo>Сбросить демо-правки</button>
     </div>
@@ -98,6 +99,28 @@
   </div>
 </div>
 
+<div class="modal" id="onb-modal" hidden>
+  <div class="modal-card onb-card" role="dialog" aria-modal="true" aria-labelledby="onb-title">
+    <div class="modal-head">
+      <h2 id="onb-title" tabindex="-1">Как это работает</h2>
+      <button class="icon-btn" type="button" data-onb-close aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <p class="onb-note">Это демо-превью. Ответы ИИ заготовлены заранее, проверка ответов — упрощённая заглушка. Сохраняется только в этом браузере</p>
+    <h3 class="onb-sub">Как устроен метод</h3>
+    <ul class="onb-list">
+      <li>Каждое утверждение ведёт к источнику — моменту видео, слайду, странице.</li>
+      <li>Любой фрагмент можно объяснить проще или переписать, оригинал не теряется.</li>
+      <li>Прогресс считается по тому, что ты смог объяснить сам.</li>
+    </ul>
+    <div class="onb-actions">
+      <button class="btn btn--primary" type="button" data-onb="shad">Открыть ШАД (видео + код)</button>
+      <button class="btn btn--primary" type="button" data-onb="physics">Открыть физику (учебник + задачи)</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="data/content.js"></script>
@@ -106,6 +129,7 @@
 <script src="js/lab.js"></script>
 <script src="js/learn.js"></script>
 <script src="js/custom.js"></script>
+<script src="js/onboarding.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

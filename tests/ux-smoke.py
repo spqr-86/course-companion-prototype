@@ -6,6 +6,7 @@ from playwright.sync_api import sync_playwright
 BASE = os.environ.get("CC_BASE_URL", "http://127.0.0.1:8876/")
 CHROME = os.environ.get("CC_CHROME")
 failures = []
+ONBOARDED = "try { if (localStorage.getItem('cc-preview-0.4') === null) localStorage.setItem('cc-preview-0.4', JSON.stringify({onboarded: true})) } catch (e) {}"  # старые сценарии не видят онбординг; уже сохранённое состояние не затираем
 
 
 def check(name, value):
@@ -18,6 +19,7 @@ with sync_playwright() as p:
     browser = p.chromium.launch(**({"executable_path": CHROME} if CHROME else {}))
     for width, theme in [(390, "light"), (1440, "light"), (390, "dark"), (1024, "light")]:
         context = browser.new_context(viewport={"width": width, "height": 844}, color_scheme=theme)
+        context.add_init_script(ONBOARDED)
         page = context.new_page()
         prefix = f"{width}/{theme}"
         errors = []
@@ -58,6 +60,39 @@ with sync_playwright() as p:
         check(prefix + " dialog contains keyboard focus", page.evaluate("!!document.activeElement.closest('#plan-modal')"))
         page.keyboard.press("Escape")
         check(prefix + " dialog closes with Escape", not page.locator("#plan-modal").is_visible())
+        check(prefix + " no Javascript errors", not errors)
+        context.close()
+
+    # Онбординг: чистый контекст, одно окно с плашкой демо.
+    PILL = "Это демо-превью. Ответы ИИ заготовлены заранее, проверка ответов — упрощённая заглушка. Сохраняется только в этом браузере"
+    for width in (390, 1440):
+        context = browser.new_context(viewport={"width": width, "height": 844})
+        page = context.new_page()
+        prefix = f"onboarding {width}"
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(BASE + "#library", wait_until="networkidle")
+        modal = page.locator("#onb-modal")
+        check(prefix + " visible at first visit", modal.is_visible())
+        check(prefix + " contains demo pill verbatim", PILL in modal.inner_text())
+        check(prefix + " no page overflow", page.evaluate("document.documentElement.scrollWidth <= innerWidth"))
+        for _ in range(8):
+            page.keyboard.press("Tab")
+            if not page.evaluate("!!document.activeElement.closest('#onb-modal')"):
+                break
+        check(prefix + " Tab stays inside", page.evaluate("!!document.activeElement.closest('#onb-modal')"))
+        page.keyboard.press("Escape")
+        check(prefix + " Escape closes", not modal.is_visible())
+        page.reload(wait_until="networkidle")
+        check(prefix + " not shown after reload", not page.locator("#onb-modal").is_visible())
+        if width == 390:
+            page.locator("#menu-btn").click()
+        page.locator("[data-open-onboarding]:visible").first.click()
+        check(prefix + " reopens from menu", page.locator("#onb-modal").is_visible())
+        page.locator("[data-onb=physics]").click()
+        page.wait_for_timeout(200)
+        check(prefix + " physics button sets hash", page.evaluate("location.hash") == "#physics")
+        check(prefix + " physics button closes dialog", not page.locator("#onb-modal").is_visible())
         check(prefix + " no Javascript errors", not errors)
         context.close()
     browser.close()
