@@ -1103,3 +1103,21 @@ summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .onb-list { margin: 0 0 16px; padding-left: 20px; display: grid; gap: 6px; font-size: 15px; line-height: 1.5; }
 .onb-actions { display: grid; gap: 8px; }
 .onb-actions .btn { min-height: 48px; justify-content: center; }
+
+/* Механики раздела 0.4: «Как я понял», статус, проверка-заглушка */
+.understand { margin: 18px 0 28px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); scroll-margin-top: 80px; }
+.u-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.u-head b { font-size: 14px; }
+.ustatus { font: 600 11.5px/1 var(--f-ui); padding: 5px 9px; border-radius: 999px; background: var(--sunken); color: var(--ink-2); }
+.ustatus[data-s="self"] { background: var(--accent-soft); color: var(--ink); }
+.uorigin { font: 600 11px/1 var(--f-ui); letter-spacing: .04em; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); }
+.layer-tag { margin: -4px 0 8px; }
+textarea.understood, textarea.check-answer { width: 100%; box-sizing: border-box; padding: 10px 12px; font: 15px/1.5 var(--f-ui); color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: 8px; resize: vertical; }
+.u-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.check { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line-strong); }
+.check-q { margin: 0 0 8px; font-weight: 600; }
+.verdict { margin-top: 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line-strong); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.verdict.is-ok { background: var(--accent-soft); }
+.verdict-text { margin: 0; flex: 1 1 100%; }
+.demo-badge { font: 600 11px/1 var(--f-ui); padding: 5px 8px; border-radius: 999px; background: var(--sunken); color: var(--muted); }
+.course-progress b { font-variant-numeric: tabular-nums; }

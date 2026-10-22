@@ -50,12 +50,107 @@ def learn_unit(page):
     print("PASS learn_unit", flush=True)
 
 
+PLACEHOLDER = "Напиши 1–2 предложения своими словами. ИИ сюда не пишет — это твой след понимания"
+LONG_OK4 = "Хороший инструмент это надёжный контракт: он идемпотентен, поэтому повторный вызов после сбоя безопасен, возвращает понятные ошибки и отдаёт структурированные данные вместо текста"
+LONG_NONE = "Тело сохраняет свою скорость пока на него ничего не действует и это очень важно для понимания законов движения в любой системе"
+
+
+def section_flow(page):
+    """Механики раздела: «Как я понял», статусы, «видел», проверка, оспаривание, прогресс курса."""
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(BASE + "#lecture-tools-mcp", wait_until="networkidle")
+    page.evaluate("location.hash='tools-mcp-notes'")
+    page.wait_for_selector(".understand[data-unit='4']", state="attached")
+    u4 = page.locator(".understand[data-unit='4']")
+    ta = u4.locator("textarea.understood")
+    assert ta.get_attribute("placeholder") == PLACEHOLDER
+    expect(u4.locator(".ustatus")).to_have_count(1)
+    expect(u4.locator(".uorigin")).to_contain_text("моя заметка")
+    # у разделов 11–12 проверки нет
+    expect(page.locator(".understand[data-unit='11'] [data-check-open]")).to_have_count(0)
+    expect(page.locator(".understand[data-unit='1'] [data-check-open]")).to_have_count(1)
+    ta.scroll_into_view_if_needed()
+    ta.fill("Инструмент это контракт между моделью и системой")
+    page.wait_for_timeout(700)
+    page.reload(wait_until="networkidle")
+    page.wait_for_selector(".understand[data-unit='4']", state="attached")
+    expect(page.locator(".understand[data-unit='4'] textarea.understood")).to_have_value("Инструмент это контракт между моделью и системой")
+    # «видел»: прокрутка до конца раздела
+    page.locator(".understand[data-unit='4']").scroll_into_view_if_needed()
+    page.wait_for_timeout(500)
+    expect(page.locator(".understand[data-unit='4'] .ustatus")).to_have_text("видел")
+    assert page.evaluate("Learn.state().status['shad:4']") == "seen"
+    # «Объяснить проще» в §4 -> «разобрался с помощью»
+    f4 = page.locator(".frag[data-sec='4']").first
+    f4.scroll_into_view_if_needed()
+    f4.hover()
+    f4.locator(".frag-plus").click()
+    page.locator("[data-fa=simple]").click()
+    expect(page.locator(".understand[data-unit='4'] .ustatus")).to_have_text("разобрался с помощью")
+    # проверка: 3 слова -> «Слишком коротко» + плашка
+    u4 = page.locator(".understand[data-unit='4']")
+    u4.locator("[data-check-open]").click()
+    expect(page.locator("#n-4 ~ .understand[data-unit='4'].checking, .understand[data-unit='4'].checking")).to_have_count(1)
+    expect(u4.locator(".check-q")).to_be_visible()
+    u4.locator("textarea.check-answer").fill("идемпотентность и ошибки")
+    u4.locator("[data-check-submit]").click()
+    expect(u4.locator(".verdict")).to_contain_text("Слишком коротко")
+    expect(u4.locator(".verdict")).to_contain_text("Демо-проверка по ключевым словам, не ИИ")
+    # 15+ слов без понятий -> «Не хватает»
+    u4.locator("textarea.check-answer").fill(LONG_NONE)
+    u4.locator("[data-check-submit]").click()
+    expect(u4.locator(".verdict")).to_contain_text("Не хватает")
+    # верный ответ -> «Зачтено», «воспроизвёл сам»
+    u4.locator("textarea.check-answer").fill(LONG_OK4)
+    u4.locator("[data-check-submit]").click()
+    expect(u4.locator(".verdict")).to_contain_text("Зачтено")
+    expect(u4.locator(".ustatus")).to_have_text("воспроизвёл сам")
+    expect(u4).not_to_have_class("checking")
+    # страница курса: 1 из 10
+    page.evaluate("location.hash='course-shad'")
+    expect(page.locator(".course-progress")).to_contain_text("1 из 10")
+    expect(page.locator(".course-progress")).to_contain_text("воспроизвёл сам")
+    # §5: короткий ответ -> «Оспорить»
+    page.evaluate("location.hash='lecture-tools-mcp'")
+    page.evaluate("location.hash='tools-mcp-notes'")
+    page.wait_for_selector(".understand[data-unit='5']", state="attached")
+    u5 = page.locator(".understand[data-unit='5']")
+    u5.locator("[data-check-open]").scroll_into_view_if_needed()
+    u5.locator("[data-check-open]").click()
+    u5.locator("textarea.check-answer").fill("протокол нужен")
+    u5.locator("[data-check-submit]").click()
+    expect(u5.locator(".verdict")).to_contain_text("Слишком коротко")
+    u5.locator("[data-check-dispute]").click()
+    expect(u5.locator(".ustatus")).to_have_text("воспроизвёл сам")
+    expect(u5.locator(".verdict")).to_contain_text("засчитано по оспариванию")
+    assert page.evaluate("Learn.state().disputed['shad:5']") is True
+    # меню фрагмента: «Проверить себя» ведёт к проверке своего раздела
+    f6 = page.locator(".frag[data-sec='6']").first
+    f6.scroll_into_view_if_needed()
+    f6.hover()
+    f6.locator(".frag-plus").click()
+    page.locator("[data-fa=check]").click()
+    expect(page.locator(".understand[data-unit='6'].checking .check-q")).to_be_visible()
+    f11 = page.locator(".frag[data-sec='11']").first
+    f11.scroll_into_view_if_needed()
+    f11.hover()
+    f11.locator(".frag-plus").click()
+    assert page.locator("[data-fa=check]").get_attribute("hidden") is not None
+    assert not errors, errors
+    print("PASS section_flow", flush=True)
+
+
 with sync_playwright() as p:
     browser = p.chromium.launch(**({"executable_path": CHROME} if CHROME else {}))
     unit_ctx = browser.new_context(viewport={"width": 1024, "height": 800})
     unit_ctx.add_init_script(ONBOARDED)
     learn_unit(unit_ctx.new_page())
     unit_ctx.close()
+    sec_ctx = browser.new_context(viewport={"width": 1024, "height": 800})
+    sec_ctx.add_init_script(ONBOARDED)
+    section_flow(sec_ctx.new_page())
+    sec_ctx.close()
     for width, theme in [(390, "light"), (1440, "light"), (390, "dark")]:
         if os.environ.get("CC_ONLY") and os.environ["CC_ONLY"] != f"{width}-{theme}":
             continue
@@ -123,17 +218,17 @@ with sync_playwright() as p:
         # Editing and chat preserve the selected section across mode switches.
         page.locator("#notes-jump").click()
         page.locator("#toc-mobile [data-notes='1']").click()
-        page.wait_for_timeout(600)
+        settle_scroll()
         frag = page.locator(".frag[data-rw='1']").first
         orig_text = frag.locator(".frag-src").inner_text()
         frag.hover()
         frag.locator(".frag-plus").click()
-        # Меню: три главных действия по порядку, «Проверить себя» пока скрыта, «Создать объяснение» убрано
+        # Меню: три главных действия по порядку, «Создать объяснение» убрано
         order = page.evaluate("[...document.querySelectorAll('#fmenu [data-fa]')].filter(b => !b.closest('.fa-more')).map(b => b.dataset.fa)")
         assert order[:3] == ["simple", "example", "check"], order
         labels = page.evaluate("[...document.querySelectorAll('#fmenu [data-fa]')].map(b => b.querySelector('b').textContent)")
         assert labels == ["Объяснить", "Показать на примере", "Проверить себя", "Переписать иначе", "Моя версия", "Спросить в чате"], labels
-        assert page.locator("[data-fa=check]").get_attribute("hidden") is not None
+        assert page.locator("[data-fa=check]").get_attribute("hidden") is None
         expect(page.locator("[data-fa=scene]")).to_have_count(0)
         expect(page.locator("#fmenu .fa-more summary")).to_have_text("Ещё")
         # «Показать на примере» в разделе без лабы: карточка с пометкой

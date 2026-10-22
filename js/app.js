@@ -95,6 +95,7 @@
     S.lectureMounted = false;
     S.mode = null;
     S.observers.forEach(io => io.disconnect()); S.observers = [];
+    LearnUI.dispose();
     S.cv && S.cv.pause();
     S.lab && S.lab.stop();
     if (S.player && S.player.destroy) try { S.player.destroy(); } catch (e) { }
@@ -242,6 +243,7 @@
       <div><b>${lectures.length}</b><span>лекций</span></div>
       <div><b>${full}</b><span>собрана полностью</span></div>
       <div><b>${k.labs.filter(labReady).length} / ${k.labs.length}</b><span>лабораторий готово</span></div>
+      <div class="course-progress"><b>${Learn.progress("shad", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).self} из 10</b><span>разделов лекции 1.2: воспроизвёл сам</span></div>
     </div>
   </div>
   <a class="btn btn--primary course-resume" href="#lecture-tools-mcp" data-resume-course>Продолжить · Tools &amp; MCP · ${fmt(C.moments.idempotency.t)}</a>
@@ -738,6 +740,12 @@
     if (h7) { const c = h7.nextElementSibling; (c && c.classList.contains("sec-chips") ? c : h7).insertAdjacentHTML("afterend", FIG_MCP); }
 
     X.decorateNotes(el);
+    // «Как я понял», статус и проверка в конце каждого раздела
+    LearnUI.dispose();
+    $$("h2[id^='n-']", el).forEach(h => {
+      const n = +h.id.slice(2), m = h.textContent.match(/^\d+\.\s*(.+)$/);
+      LearnUI.mountSection(h, { lecture: "shad", unit: n, title: m ? m[1] : String(n), rule: (window.CCChecks.shad || {})[n] || null });
+    });
     $("#toc").innerHTML = `<div class="eyebrow">Разделы</div>` + toc.map(t => `<a href="#tools-mcp-notes" data-notes="${t.n}">${t.n}. ${esc(t.title)}</a>`).join("");
     $("#toc-mobile").innerHTML = toc.map(t => `<a href="#tools-mcp-notes" data-notes="${t.n}">${t.n}. ${esc(t.title)}</a>`).join("");
     if ("IntersectionObserver" in window) {

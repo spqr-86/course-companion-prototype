@@ -459,7 +459,7 @@
     menu.innerHTML = `<div class="fmenu-q"><span>${src}</span>«${esc(clip(c.quote, 90))}»</div>
       <button type="button" role="menuitem" data-fa="simple"><b>Объяснить</b><small>версия проще, оригинал сохранится</small></button>
       <button type="button" role="menuitem" data-fa="example"><b>Показать на примере</b><small>лаборатория, анимация или пример ИИ</small></button>
-      <button type="button" role="menuitem" data-fa="check" hidden><b>Проверить себя</b><small>вопросы по разделу</small></button>
+      <button type="button" role="menuitem" data-fa="check"${window.LearnUI && LearnUI.hasRule(c.sec) ? "" : " hidden"}><b>Проверить себя</b><small>вопросы по разделу</small></button>
       <details class="fa-more"><summary>Ещё</summary>
         ${c.rw ? `<button type="button" role="menuitem" data-fa="airewrite"><b>Переписать иначе</b><small>другая формулировка ИИ, оригинал сохранится</small></button>
         <button type="button" role="menuitem" data-fa="rewrite"><b>Моя версия</b><small>личная версия, оригинал сохранится</small></button>` : ""}
@@ -508,6 +508,7 @@
       A().openChat();
       return;
     }
+    if (a === "check") { LearnUI.openCheck(c.sec); return; }
     if (a === "simple" || a === "airewrite") {
       if (c.src === "notes") {
         setVers(c.pid, a === "simple" ? { simple: true, active: "simple" } : { rewrite: true, active: "rewrite" });
