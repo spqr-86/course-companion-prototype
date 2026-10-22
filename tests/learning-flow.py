@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
+from preview04_extra import run_all as run_preview04_tests
 
 BASE = os.environ.get("CC_BASE_URL", "http://127.0.0.1:8876/")
 ONBOARDED = "try { if (localStorage.getItem('cc-preview-0.4') === null) localStorage.setItem('cc-preview-0.4', JSON.stringify({onboarded: true})) } catch (e) {}"  # старые сценарии не видят онбординг; уже сохранённое состояние не затираем
@@ -474,4 +475,5 @@ with sync_playwright() as p:
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         print(f"PASS {prefix}: reading, search, slides, editing, chat, animation, L01, L02, reload", flush=True)
         context.close()
+    run_preview04_tests(browser, BASE, ONBOARDED)
     browser.close()

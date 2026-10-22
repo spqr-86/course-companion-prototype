@@ -68,3 +68,10 @@ Task 3: fix round 1/5 (3 addressed, 0 open; commits 2b4addd..99183b8)
 Task 3: minor (deferred): restored pred/actual без проверки типа; .cv-ask остаётся видимым после ухода из раздела
 Task 3: complete (commits a25ea92..99183b8, review clean)
 Handoff: дальше ChatGPT по docs/preview-0.4/HANDOFF.md с Task 6.
+
+Task 6: Ruling: проверенный веб-раздел § вместо непроверенного PDF page — официальный PDF недоступен — цена: требование пагинации PDF отложено.
+Task 6: content and source links prepared (pending original Playwright tests and screenshots).
+Task 7–8: local overlay implementation prepared; tests/preview04_extra.py added, browser integration tests pending repository checkout.
+Task 9: waiting for Petr's run — tools/gen_demo_ai.py must not be executed by agent; red test expected.
+Task 10–11: local overlay prepared; full project test and visual review not verified, no false PASS claimed.
+Ruling: изменение подготовлено локально из-за отсутствия checkout и полных интеграционных тестов — цена: для просмотра в preview-0.4 требуется применить overlay в рабочем checkout.

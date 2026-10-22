@@ -62,6 +62,14 @@
   function renderSide(route) {
     const cur = t => route === t || (t === "lecture-tools-mcp" && route.startsWith("tools-mcp")) ? ' aria-current="page"' : "";
     const lectures = C.course.modules.flatMap(m => m.lectures);
+    if (route.startsWith("physics")) {
+      $("#side-nav").innerHTML = `<a href="#library">Библиотека</a>
+        <div class="group">Школьная физика · OpenStax</div>
+        <a href="#physics"${route === "physics" ? ' aria-current="page"' : ""}>Законы Ньютона · обзор</a>
+        ${CCPhysics.sections.map(x => `<a href="#physics-${x.n}"${route === "physics-" + x.n ? ' aria-current="page"' : ""}>${x.n}. ${esc(x.title)}</a>`).join("")}
+        <a href="#physics" data-go-problems>Задачи</a>`;
+      return;
+    }
     if (route === "library") {
       $("#side-nav").innerHTML = `<a href="#library" aria-current="page">Библиотека</a>
         <div class="group">Мои курсы</div><a href="#course-shad">Неделя агентов 2026</a>`;
@@ -86,8 +94,10 @@
     const r = (location.hash || "#library").slice(1) || "library";
     renderSide(r);
     closeSide();
+    if (!r.startsWith("physics") && $(".physics-page", $("#view"))) window.Physics?.dispose?.();
     if (!(r.startsWith("lecture") || r.startsWith("tools-mcp"))) closeChat();
     $$("[data-open-chat]").forEach(b => { b.hidden = !(r.startsWith("lecture") || r.startsWith("tools-mcp")); });
+    if (r === "physics" || /^physics-[1-5]$/.test(r)) { leaveLecture(); return window.Physics.render(r); }
     if (r === "library") return renderLibrary();
     if (r === "course-shad") return renderCourse();
     if (r === "course-requests") return renderCourse("requests");
@@ -108,6 +118,51 @@
     clearInterval(S.poll);
   }
 
+  /* ---------- Возвращение к реальному состоянию ---------- */
+  function resumeData() {
+    const st=Learn.state(), last=st.last;
+    if(!last || !["shad","physics"].includes(last.lecture)) return null;
+    const titles=last.lecture==="physics"
+      ? (window.CCPhysics?.sections || []).map(x=>x.title)
+      : ["Инструменты модели","Контракт инструмента","Цикл tool calling","Надёжность и идемпотентность","Зачем протокол","Знакомство с MCP","Host, Client, Server","Как идёт запрос","Польза MCP","Когда MCP не нужен"];
+    const title=last.kind==="lab" ? "Лаборатория L01"
+      : last.kind==="problem" ? `Задача ${String(last.unit).toUpperCase()}`
+      : (titles[+last.unit-1] || `Раздел §${last.unit}`);
+    const u=st.understood || {}, p=(st.problems||{})["physics:"+last.unit] || {};
+    const draft=last.kind==="lab" ? (u["shad:L01:draft"] || u["shad:L01"] || "")
+      : last.kind==="problem" ? (p.rung ? `шаг подсказки ${p.rung}` : (p.draft || ""))
+      : (u[`${last.lecture}:${last.unit}`] || "");
+    const units=last.lecture==="physics" ? [1,2,3,4,5,"q1","r1"] : [1,2,3,4,5,6,7,8,9,10];
+    const pending=units.find(unit=>(st.status||{})[`${last.lecture}:${unit}`]!=="self");
+    const remain=pending==null?"Все проверки выполнены":`Осталось: ${typeof pending==="number" ? "раздел §"+pending : "задача "+pending}`;
+    return {last,title,draft:clip(draft,120),remain};
+  }
+  function renderContinue(course=false) {
+    const r=resumeData();
+    if (!r) {
+      return course ? `<div class="course-resume"><b>Начать</b> · <a href="#lecture-tools-mcp" data-onb="shad">Открыть ШАД</a> · <a href="#physics" data-onb="physics">Открыть физику</a></div>`
+        : `<section class="continue" aria-label="Начать"><div class="continue-body"><div class="eyebrow">Начать</div><h2>Выберите материал</h2><p>Здесь появятся последнее место, ваши заметки и следующий шаг.</p><div class="actions"><a class="btn btn--primary" href="#lecture-tools-mcp" data-onb="shad">Открыть ШАД</a><a class="btn" href="#physics" data-onb="physics">Открыть физику</a></div></div></section>`;
+    }
+    const route=r.last.route || (r.last.lecture==="physics"?"physics":"tools-mcp-notes");
+    if(course) return `<a class="btn btn--primary course-resume" data-continue href="#${esc(route)}">Продолжить разбор · ${esc(r.title)}</a>`;
+    return `<section class="continue" data-last="${esc(r.last.lecture+":"+r.last.unit)}" aria-label="Продолжить обучение"><div class="continue-body">
+       <div class="eyebrow">${r.last.lecture==="physics"?"Школьная физика":"Неделя агентов 2026"} · последняя работа</div>
+       <h2>${esc(r.title)}</h2><div class="resume-at">${r.draft?esc(r.draft):"Вы ещё не записали свой вывод"}</div>
+       <p class="hint">${esc(r.remain)}</p><div class="actions"><a class="btn btn--primary" data-continue href="#${esc(route)}">Продолжить разбор</a></div></div></section>`;
+  }
+  function resumeAfterNavigation(last) {
+    if(last.lecture==="physics") { window.Physics?.resume?.(last); return; }
+    if(last.kind==="section") {
+      if(last.route === "lecture-tools-mcp" && S.data) S.pendingSeek=S.data.chapters.find(x=>x.notes_section===+last.unit)?.t ?? null;
+      if(window.CCApp && S.lectureMounted) goNotes(+last.unit);
+      const block=$(`.understand[data-unit="${last.unit}"]`);
+      if(block) { block.scrollIntoView({block:"start"}); $("textarea.understood",block)?.focus({preventScroll:true}); }
+    } else if(last.kind==="lab") {
+      if(S.lab && last.mode) $("[data-group=mode] [data-v="+last.mode+"]")?.click();
+      const t=$(".lab-explain textarea"); if(t){t.scrollIntoView({block:"center"});t.focus({preventScroll:true});}
+    }
+  }
+
   /* ---------- Библиотека ---------- */
   function cover(hue, seed) {
     // Небольшой граф «узлы и рёбра» — детерминированный по seed.
@@ -124,7 +179,6 @@
 
   function renderLibrary() {
     leaveLecture();
-    const resume = C.moments.idempotency;
     const cards = [...S.extraCourses, ...C.library];
     $("#view").innerHTML = `
 <div class="page">
@@ -137,28 +191,16 @@
     <button class="btn" type="button" data-add-course>+ Добавить курс</button>
   </div>
 
-  <section class="continue" aria-label="Продолжить обучение">
-    <a class="continue-art" href="#lecture-tools-mcp" data-resume>
-      <img src="assets/slides/slide-07.webp" alt="Слайд «Tool Design Principles»" loading="lazy">
-      <span class="tc">▶ ${fmt(resume.t)}</span>
-    </a>
-    <div class="continue-body">
-      <div class="eyebrow">Продолжить · Неделя агентов 2026 · Лекция 1.2</div>
-      <h2>Tools &amp; MCP</h2>
-      <div class="resume-at"><b>${fmt(resume.t)}</b><span>${esc(resume.label)}</span></div>
-      <div class="path-mini" aria-label="Маршрут по лекции">
-        <span class="on">Видео</span><span>Конспект</span><span>Анимация кода</span><span>Лаборатория</span>
-      </div>
-      <span class="hint">Демо · место остановки задано для примера</span>
-      <div class="actions">
-        <a class="btn btn--primary" href="#lecture-tools-mcp" data-resume>${ICON_PLAY} Продолжить с ${fmt(resume.t)}</a>
-        <a class="btn" href="#course-shad">Открыть курс</a>
-      </div>
-    </div>
-  </section>
+  ${renderContinue()}
 
-  <div class="section-h"><h2>Курсы</h2><p>${cards.length} в библиотеке</p></div>
+  <div class="section-h"><h2>Курсы</h2><p>${cards.length + 1} в библиотеке</p></div>
   <div class="cards">
+    <a class="ccard" href="#physics" data-course-physics>
+      <div class="ccard-cover">${cover(190, 6)}</div>
+      <div class="ccard-body"><div class="ccard-org">OpenStax · учебник · 9 класс</div>
+        <h3>Законы Ньютона · школьная физика</h3><p class="note">5 разделов, сверка с источником и 2 задачи с подсказками</p>
+        <div class="bar"><div class="bar-row"><span>Самостоятельно проверено</span><span>${Learn.progress("physics",[1,2,3,4,5,"q1","r1"]).self} из 7</span></div></div>
+      </div></a>
     ${cards.map((c, i) => {
       const pct = Math.round(c.done / c.lectures * 100);
       const inner = `
@@ -183,9 +225,8 @@
       <span class="note">Ссылки на видео, слайды, ноутбуки</span>
     </button>
   </div>
-  <p class="hint" style="margin-top:14px">Прогресс в карточках — демо-данные. Материалы есть только у курса «Неделя агентов 2026».</p>
+  <p class="hint" style="margin-top:14px">Прогресс ШАД и физики основан на самопроверках этого браузера. Остальные карточки — демонстрационные.</p>
 </div>`;
-    $$("[data-resume]").forEach(a => a.addEventListener("click", () => { S.pendingSeek = resume.t; }));
     $$("[data-add-course]").forEach(b => b.addEventListener("click", openAdd));
     $("#view").focus({ preventScroll: true });
     window.scrollTo(0, 0);
@@ -252,7 +293,7 @@
       <div class="course-progress"><b>${Learn.progress("shad", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]).self} из 10</b><span>разделов лекции 1.2: воспроизвёл сам</span></div>
     </div>
   </div>
-  <a class="btn btn--primary course-resume" href="#lecture-tools-mcp" data-resume-course>Продолжить · Tools &amp; MCP · ${fmt(C.moments.idempotency.t)}</a>
+  ${renderContinue(true)}
   <nav class="ctabs" aria-label="Разделы курса">
     <a href="#course-shad"${tab === "overview" ? ' aria-current="page"' : ""}>Обзор</a>
     <details class="side-archive ctab-archive"${tab === "requests" ? " open" : ""}>
@@ -309,7 +350,6 @@
     }).join("")}
   </div>
 </div>`;
-    $("[data-resume-course]")?.addEventListener("click", () => { S.pendingSeek = C.moments.idempotency.t; });
     if (keep) { window.scrollTo(0, y); return; }
     $("#view").focus({ preventScroll: true });
     window.scrollTo(0, 0);
@@ -884,7 +924,7 @@
       const b = e.target.closest("[data-q]");
       if (!b) return;
       const c = C.chat[+b.dataset.q], sec = (c.refs.find(r => r.notes) || {}).notes;
-      ask(esc(c.q), botAnswer("Демо-ответ, подготовлен заранее", c.q, c.a, cardRefs(c.refs), sec, c.refs.map(refChip).join("")) +
+      ask(esc(c.q), botAnswer("Демо-ответ, подготовлен заранее", c.q, (window.CCDemoAI?.shad?.chat?.[+b.dataset.q] || c.a), cardRefs(c.refs), sec, c.refs.map(refChip).join("")) +
         (+b.dataset.q === 1 ? X.suggestion() : ""));
     });
     $("#chat-form").addEventListener("submit", e => {
@@ -993,6 +1033,15 @@
     const r = (location.hash || "#library").slice(1) || "library";
     renderSide(r);
     if (r === "course-shad" || r === "course-requests") renderCourse(r === "course-requests" ? "requests" : "overview", true);
+  });
+  document.addEventListener("click", e => {
+    const c=e.target.closest("[data-continue]"); if(!c)return;
+    const last=Learn.state().last; if(!last)return;
+    if(last.lecture==="shad" && last.kind==="section" && last.route==="lecture-tools-mcp") S.pendingSeek=C.moments.idempotency.t;
+    const ready = () => last.lecture==="physics" ? !!$(".physics-page") : last.kind==="lab" ? !!$(".lab-explain") : !!$(`.understand[data-unit="${last.unit}"]`);
+    let attempts=0;
+    const retry=()=>{if(ready())resumeAfterNavigation(last); else if(attempts++<65)setTimeout(retry,80);};
+    setTimeout(retry,0);
   });
   setupAdd();
   setupChat();

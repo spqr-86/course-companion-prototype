@@ -19,7 +19,6 @@
     const go = e.target.closest("[data-onb]");
     if (!go) return;
     close();
-    // Маршрут физики появится позже; неизвестный маршрут ведёт в библиотеку.
     location.hash = go.dataset.onb === "physics" ? "#physics" : "#lecture-tools-mcp";
   });
   document.addEventListener("click", e => {

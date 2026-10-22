@@ -1154,3 +1154,56 @@ textarea.understood, textarea.check-answer { width: 100%; box-sizing: border-box
 .ctabs .ctab-archive > a { display: block; margin: 0 8px 8px; padding: 6px 8px; }
 /* В режиме проверки условия задаёт сама проверка: выбор сценария и условий скрыт */
 .lab.checking .lab-side { display: none; }
+
+/* Preview 0.4 — самостоятельная физика и возвращение */
+.physics-page { max-width: 1380px; }
+.phys-head { margin: 0 0 22px; }
+.phys-toc { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px; }
+.phys-toc a { color:var(--ink,inherit); text-decoration:none; padding:7px 11px; border:1px solid var(--line, #9996); border-radius:12px; font-size:13px; }
+.phys-layout { display:grid; grid-template-columns: minmax(0, 1fr) minmax(275px, 340px); align-items:start; gap:clamp(16px,3vw,35px); }
+.phys-notes, .phys-source, .phys-notes section { min-width:0; }
+.phys-notes > section[data-phys-unit] { margin: 0 0 36px; padding:0 0 26px; border-bottom:1px solid var(--line,#9995); }
+.phys-notes h2 { scroll-margin-top:76px; }
+.phys-layer { display:flex; gap:6px; margin:5px 0 10px; align-items:center; }
+.phys-version-content { font-family: 'Literata',serif; font-size: 1rem; line-height:1.75; overflow-wrap:anywhere; }
+.phys-figure { max-width:440px; margin:18px auto; color:var(--ink,currentColor); }
+.force-svg { width:100%; height:auto; display:block; }
+.phys-figure figcaption { text-align:center; font-size:12px; opacity:.7; margin-top:4px; }
+.phys-actions,.phys-mine-editor .u-actions { display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin-top:12px; }
+.phys-actions details { display:inline-block; position:relative; }
+.phys-actions summary { cursor:pointer; font-size:13px; }
+.phys-actions details button { display:block; margin:8px 0; background:transparent; color:inherit; border:0; text-align:left; cursor:pointer; }
+.phys-example,.src-quote { padding:13px 17px; margin:14px 0; border-left:3px solid var(--accent,#577ca0); background:var(--surface-2,#7771); border-radius:0 9px 9px 0; }
+.src-quote { font-size:14px; line-height:1.6; }
+.phys-mine-editor textarea,.phys-problem textarea { box-sizing:border-box; display:block; width:100%; min-height:80px; resize:vertical; padding:12px; border:1px solid var(--line,#9998); border-radius:10px; background:var(--surface,#fff); color:inherit; }
+.phys-source { position:sticky; top:24px; max-height:calc(100vh - 50px); overflow:auto; border:1px solid var(--line,#9997); border-radius:15px; background:var(--surface,#fff); padding:13px; }
+.phys-source > summary { cursor:pointer; font-weight:600; }
+.phys-source-entry { padding:14px 12px; margin:12px 0; border-radius:10px; border:1px solid transparent; transition:background .15s; scroll-margin-top:40px; overflow-wrap:anywhere; }
+.phys-source-entry h3 { font-size:14px; margin:8px 0; }
+.phys-source-entry blockquote { font-family:'Literata',serif; font-size:14px; margin:9px 0; }
+.phys-source-entry.is-hit { border-color:var(--accent,#577ca0); background:var(--surface-2,#a1a1a11b); }
+.src-link { display:inline; vertical-align:baseline; border:0; border-bottom:1px dotted currentColor; padding:0 2px; margin:0 2px; font:inherit; font-size:.82em; background:transparent; color:var(--accent,#4477aa); cursor:pointer; }
+.phys-problem { margin:18px 0; padding:19px; border:1px solid var(--line,#9996); border-radius:14px; scroll-margin-top:70px; }
+.phys-problem h3 { font-size:17px; line-height:1.5; }
+.phys-problem .u-actions { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+.phys-pstatus { margin-left:auto; font-size:12px; }
+.phys-hint,.phys-step,.phys-solution { padding:9px 11px; margin:7px 0; border-radius:8px; background:var(--surface-2,#8882); line-height:1.5; }
+.phys-similar { border-top:1px solid var(--line,#9995); padding:15px 0 3px; margin-top:14px; }
+.phys-similar input { box-sizing:border-box; max-width:160px; margin:6px 10px 6px 0; background:var(--surface,#fff); border:1px solid var(--line,#9998); color:inherit; border-radius:8px; padding:9px; }
+.phys-attribution { padding:20px 0 40px; font-size:12px; line-height:1.55; max-width:850px; opacity:.8; }
+.continue[data-last] { overflow-wrap:anywhere; }
+.continue .continue-body { min-width:0; }
+.continue .resume-at { overflow-wrap:anywhere; }
+@media(max-width:1099px) {
+  .phys-layout { grid-template-columns:minmax(0,1fr); }
+  .phys-source { position:static; max-height:none; overflow:visible; order:1; }
+  .phys-notes { order:0; }
+  .phys-source-inner { max-height:450px; overflow:auto; }
+}
+@media(max-width:640px) {
+  .phys-toc { display:flex; flex-wrap:nowrap; overflow-x:auto; max-width:100%; padding-bottom:7px; }
+  .phys-toc a { white-space:nowrap; flex:0 0 auto; }
+  .phys-problem { padding:13px; }
+  .phys-notes .vtabs { max-width:100%; overflow-x:auto; }
+  .phys-source { padding:8px; }
+}

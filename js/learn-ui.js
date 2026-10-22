@@ -75,6 +75,9 @@
 
     const ta = $("textarea.understood", block), st = $(".ustatus", block);
     ta.value = (L.state().understood || {})[k] || "";
+    const touch = () => L.touch({lecture:opts.lecture,unit:opts.unit,kind:"section",
+      route:opts.lecture === "physics" ? "physics-"+opts.unit : "tools-mcp-notes"});
+    ta.addEventListener("focus", touch);
     badge(st, k);
     let timer = 0;
     const flush = () => {
@@ -84,12 +87,12 @@
       u[k] = ta.value;
       L.save({ understood: u });
     };
-    ta.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(flush, 400); });
+    ta.addEventListener("input", () => { touch(); clearTimeout(timer); timer = setTimeout(flush, 400); });
     ta.addEventListener("blur", flush);
     const onLearn = () => { if (document.contains(block)) badge(st, k); };
     addEventListener("pagehide", flush);
     addEventListener("cc:learn", onLearn);
-    disposers.push(() => { removeEventListener("pagehide", flush); removeEventListener("cc:learn", onLearn); });
+    disposers.push(() => { clearTimeout(timer); flush(); removeEventListener("pagehide", flush); removeEventListener("cc:learn", onLearn); });
 
     if (rule) {
       const box = $(".check", block), res = $(".check-result", block);
@@ -98,10 +101,10 @@
         box.hidden = !on;
         layer(h2, block).forEach(n => { n.hidden = on; });
       };
-      block._openCheck = () => { collapse(true); $("textarea.check-answer", block).focus({ preventScroll: true }); };
+      block._openCheck = () => { touch(); collapse(true); $("textarea.check-answer", block).focus({ preventScroll: true }); };
       $("[data-check-open]", block).addEventListener("click", block._openCheck);
       $("[data-check-close]", block).addEventListener("click", () => collapse(false));
-      $("[data-check-submit]", block).addEventListener("click", () => {
+      $("[data-check-submit]", block).addEventListener("click", () => { touch();
         const r = L.grade($("textarea.check-answer", block).value, rule);
         r.hint = rule.concepts.map(c => c[0]);
         const dispute = () => {
