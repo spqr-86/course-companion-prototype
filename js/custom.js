@@ -366,12 +366,12 @@
     if (!has.simple && !has.rewrite && !has.mine) { tabs?.remove(); mine.hidden = true; mine.innerHTML = ""; return; }
     if (!tabs) { tabs = document.createElement("div"); tabs.className = "vtabs"; tabs.setAttribute("role", "tablist"); tabs.setAttribute("aria-label", "Версии абзаца"); $(".frag-src", frag).before(tabs); }
     tabs.innerHTML = Object.keys(VT).filter(k => has[k]).map(k =>
-      `<button type="button" role="tab" data-vtab="${k}" aria-selected="${k === active}" tabindex="${k === active ? 0 : -1}">${VT[k]}</button>`).join("") +
+      `<button type="button" role="tab" id="vt-${pid}-${k}" data-vtab="${k}" aria-selected="${k === active}"${k === active ? ` aria-controls="vp-${pid}"` : ""} tabindex="${k === active ? 0 : -1}">${VT[k]}</button>`).join("") +
       `<span class="vtab-origin">${VORIGIN[active]}</span>`;
     if (focusTab) $(`[data-vtab="${focusTab}"]`, tabs)?.focus({ preventScroll: true });
     if (active === "orig") { mine.hidden = true; mine.innerHTML = ""; return; }
     mine.hidden = false;
-    mine.setAttribute("role", "tabpanel");
+    mine.setAttribute("role", "tabpanel"); mine.id = "vp-" + pid; mine.setAttribute("aria-labelledby", `vt-${pid}-${active}`);
     mine.innerHTML = active === "mine"
       ? `<div class="mine-bar"><span class="xtag">${VORIGIN.mine}</span>
         <button class="xbtn" type="button" data-mine="edit">Править</button>
@@ -515,8 +515,11 @@
       } else {
         // У абзаца транскрипта вкладок нет: пересказ сразу сохраняется карточкой в конспект раздела.
         const text = a === "simple" ? simpleText(c.sec) : (AI().rewrite[c.sec] || AI().rewrite[4]);
-        st.cards.push({ id: "c" + st.seq++, kind: "simple", sec: c.sec, text, refs: [{ t: c.t, label: "фрагмент транскрипта" }] });
-        changed();
+        // Повторный клик по тому же фрагменту не плодит дубли.
+        if (!st.cards.some(x => x.kind === "simple" && x.sec === c.sec && x.text === text && (x.refs || [])[0]?.t === c.t)) {
+          st.cards.push({ id: "c" + st.seq++, kind: "simple", sec: c.sec, text, refs: [{ t: c.t, label: "фрагмент транскрипта" }] });
+          changed();
+        }
         toast(`Пересказ сохранён в конспект §${c.sec}.`);
       }
       helped(c.sec);
@@ -611,6 +614,18 @@
 
   /* ---------- События ---------- */
   document.addEventListener("selectionchange", () => { clearTimeout(selT); selT = setTimeout(onSelection, 220); });
+  // Вкладки версий по WAI-ARIA: стрелки/Home/End двигают фокус и сразу переключают версию.
+  document.addEventListener("keydown", e => {
+    const tab = e.target.closest && e.target.closest("[data-vtab]");
+    if (!tab || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    const tabs = $$("[data-vtab]", tab.parentElement), i = tabs.indexOf(tab);
+    const to = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+    e.preventDefault();
+    const frag = tab.closest(".frag");
+    setVers(frag.dataset.pid, { active: tabs[to].dataset.vtab });
+    applyEdit(frag);
+    $(`[data-vtab="${tabs[to].dataset.vtab}"]`, frag)?.focus({ preventScroll: true });
+  });
   document.addEventListener("keydown", e => { if (e.key === "Escape") { hideMenu(); closePlan(); } });
   addEventListener("scroll", () => { if (menu && !menu.hidden && !menu.classList.contains("sheet")) hideMenu(); }, { passive: true });
   document.addEventListener("scroll", e => { if (e.target.id === "panel-body" && menu && !menu.hidden && !menu.classList.contains("sheet")) hideMenu(); }, true);
