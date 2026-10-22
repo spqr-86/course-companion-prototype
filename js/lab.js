@@ -245,6 +245,7 @@ ${hasCheck ? `<section class="lab-note" aria-label="Мой вывод" hidden>
       if (hasCheck && M.mode === "check" && !M.revealed && M.pred && P.losses === 1 && results.length === 2 && results.every(r => r.done)) {
         M.revealed = true;
         M.actual = results.map(r => r.s.refunds.length).join(" и ");
+        saveLab();
       }
       const hide = hasCheck && M.mode === "check" && !M.revealed;
       const mk = hide ? " masked" : "";
@@ -309,6 +310,7 @@ ${hasCheck ? `<section class="lab-note" aria-label="Мой вывод" hidden>
       const needPred = hide && !M.pred;
       runBtn.disabled = needPred && !timer;
       q(".lab-out").classList.toggle("masked", hide);
+      q(".lab-out").toggleAttribute("aria-hidden", hide);
       runBtn.querySelector("span").textContent = timer ? "Пауза" : (pos >= total ? "Заново" : "Запуск");
       runBtn.querySelector("svg").innerHTML = timer ? '<path d="M4 2h3v12H4zM9 2h3v12H9z"/>' : '<path d="M4 2l10 6-10 6z"/>';
       q('[data-lab="step"]').disabled = pos >= total || needPred;
@@ -355,6 +357,12 @@ ${hasCheck ? `<section class="lab-note" aria-label="Мой вывод" hidden>
     const ta = hasCheck ? q(".lab-explain textarea") : null;
     let draftTimer = 0;
 
+    // Прогресс проверки живёт в Learn.state().lab["shad:L01"]: после reload панели и вердикты восстанавливаются.
+    function saveLab() {
+      const lab = Ln.state().lab || {};
+      lab[LK] = { mode: M.mode, pred: M.pred, revealed: M.revealed, actual: M.actual, explainOk: M.explainOk, transferOk: M.transferOk };
+      Ln.save({ lab });
+    }
     function syncCheck() {
       if (!hasCheck) return;
       const on = M.mode === "check";
@@ -382,23 +390,25 @@ ${hasCheck ? `<section class="lab-note" aria-label="Мой вывод" hidden>
       // Условия проверки ставим, пока маска не снята. Введённое не сбрасываем.
       if (m === "check" && !M.revealed) { P.scenario = "lost"; P.compare = true; P.losses = 1; rebuild(); }
       else render();
+      saveLab();
       touch();
     }
 
     function maybeDone() { if (M.explainOk && M.transferOk) Ln.setStatus(LK, "self"); }
     function accept(text) {
       clearTimeout(draftTimer); draftTimer = 0;
-      const u = Ln.state().understood;
+      const u = Ln.state().understood || {};
       u[LK] = text;
       delete u[LK + ":draft"];
       Ln.save({ understood: u });
       M.explainOk = true;
+      saveLab();
       syncCheck();
       maybeDone();
     }
     function flushDraft() {
       clearTimeout(draftTimer); draftTimer = 0;
-      const u = Ln.state().understood;
+      const u = Ln.state().understood || {};
       if (ta.value === (u[LK] || "") || ta.value === (u[LK + ":draft"] || "")) return;
       if (ta.value) u[LK + ":draft"] = ta.value; else delete u[LK + ":draft"];
       Ln.save({ understood: u });
@@ -407,8 +417,20 @@ ${hasCheck ? `<section class="lab-note" aria-label="Мой вывод" hidden>
     if (hasCheck) {
       const u0 = Ln.state().understood || {};
       ta.value = u0[LK + ":draft"] || u0[LK] || "";
+      const sv = (Ln.state().lab || {})[LK];
+      if (sv && typeof sv === "object") {
+        Object.assign(M, { pred: sv.pred || null, revealed: !!sv.revealed, actual: sv.actual || "", explainOk: !!sv.explainOk, transferOk: !!sv.transferOk });
+        if (sv.mode === "check") { M.mode = "check"; P.scenario = "lost"; P.compare = true; P.losses = 1; }
+        if (M.explainOk) window.LearnUI.renderVerdict(q(".explain-result"), (Ln.state().disputed || {})[LK] ? { ok: true, disputed: true } : { ok: true });
+        if (M.transferOk) {
+          const tr = q(".transfer-result");
+          tr.textContent = `Верно: ${CK.transfer.expected} возврата. Проверьте запуском.`;
+          tr.dataset.ok = "true";
+          q(".transfer-answer").value = String(CK.transfer.expected);
+        }
+      }
       root.querySelectorAll('[data-group="mode"] button').forEach(b => b.addEventListener("click", () => setMode(b.dataset.v)));
-      root.querySelectorAll("[data-pred]").forEach(b => b.addEventListener("click", () => { M.pred = b.dataset.pred; render(); }));
+      root.querySelectorAll("[data-pred]").forEach(b => b.addEventListener("click", () => { M.pred = b.dataset.pred; saveLab(); render(); }));
       ta.addEventListener("input", () => { clearTimeout(draftTimer); draftTimer = setTimeout(flushDraft, 400); });
       ta.addEventListener("blur", flushDraft);
       onHide = flushDraft;
@@ -432,7 +454,7 @@ ${hasCheck ? `<section class="lab-note" aria-label="Мой вывод" hidden>
           ? `Верно: ${CK.transfer.expected} возврата. Каждый повтор без ключа выполняет отмену заново, к первому выполнению добавляются повторы. Проверьте запуском.`
           : "Не сходится. Подумайте: без ключа каждый повтор снова выполняет отмену, а первое выполнение уже было.";
         res.dataset.ok = ok;
-        if (ok) { M.transferOk = true; maybeDone(); }
+        if (ok) { M.transferOk = true; saveLab(); maybeDone(); }
       });
       q("[data-transfer-run]").addEventListener("click", () => {
         P.scenario = "lost"; P.compare = true; P.losses = CK.transfer.losses;

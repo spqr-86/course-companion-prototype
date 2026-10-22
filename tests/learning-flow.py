@@ -229,6 +229,43 @@ def lab_flow(page):
     print("PASS lab_flow", flush=True)
 
 
+def lab_restore(page):
+    """Прогресс проверки лабы переживает reload: прогноз, вердикты, панели, черновик."""
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(BASE + "#tools-mcp-lab", wait_until="networkidle")
+    page.evaluate("localStorage.setItem('cc-preview-0.4', JSON.stringify({onboarded: true}))")
+    page.reload(wait_until="networkidle")
+    lab = page.locator(".lab")
+    lab.locator("[data-group=mode] [data-v=check]").click()
+    lab.locator("[data-pred='2 и 1']").click()
+    lab.locator("[data-lab=run]").click()
+    page.locator("[data-lab=run] span").filter(has_text="Заново").wait_for(timeout=15000)
+    ex = page.locator(".lab-explain")
+    ex.locator("textarea").fill("черновик про ключ")
+    page.wait_for_timeout(600)
+    page.reload(wait_until="networkidle")
+    expect(page.locator(".lab.checking")).to_be_visible()
+    expect(page.locator(".lab-predict")).to_contain_text("вышло: 2 и 1")
+    expect(ex).to_be_visible()
+    assert ex.locator("textarea").input_value() == "черновик про ключ"
+    assert page.locator(".lab .counters.masked").count() == 0
+    ex.locator("textarea").fill(LAB_EXPLAIN_OK)
+    ex.locator("[data-explain-submit]").click()
+    expect(ex.locator(".verdict")).to_contain_text("Зачтено")
+    page.reload(wait_until="networkidle")
+    expect(page.locator(".lab-explain .verdict")).to_be_visible()
+    expect(page.locator(".lab-explain .verdict")).to_contain_text("Зачтено")
+    expect(page.locator(".lab-transfer")).to_be_visible()
+    page.locator(".lab-transfer input").fill("3")
+    page.locator("[data-transfer-check]").click()
+    page.reload(wait_until="networkidle")
+    expect(page.locator(".lab-transfer .transfer-result")).to_contain_text("Верно")
+    assert page.evaluate("Learn.state().status['shad:L01']") == "self"
+    assert not errors, errors
+    print("PASS lab_restore", flush=True)
+
+
 with sync_playwright() as p:
     browser = p.chromium.launch(**({"executable_path": CHROME} if CHROME else {}))
     unit_ctx = browser.new_context(viewport={"width": 1024, "height": 800})
@@ -243,6 +280,10 @@ with sync_playwright() as p:
     lab_ctx.add_init_script(ONBOARDED)
     lab_flow(lab_ctx.new_page())
     lab_ctx.close()
+    rest_ctx = browser.new_context(viewport={"width": 1024, "height": 800})
+    rest_ctx.add_init_script(ONBOARDED)
+    lab_restore(rest_ctx.new_page())
+    rest_ctx.close()
     for width, theme in [(390, "light"), (1440, "light"), (390, "dark")]:
         if os.environ.get("CC_ONLY") and os.environ["CC_ONLY"] != f"{width}-{theme}":
             continue

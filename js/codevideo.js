@@ -291,8 +291,9 @@ def cancel_booking(booking_id: str) -> str:
     function closeAsk(resume) {
       clearTimeout(askTimer); askTimer = 0;
       ask.hidden = true;
-      if (resume && askResume) setPlaying(true);
+      const again = resume && askResume && !playing;
       askResume = false;
+      if (again) setPlaying(true);
     }
     function openAsk() {
       askDone = true;
@@ -318,6 +319,7 @@ def cancel_booking(booking_id: str) -> str:
     ask.querySelector("[data-ask-continue]").addEventListener("click", () => closeAsk(true));
 
     function setPlaying(v) {
+      if (v) { clearTimeout(askTimer); askTimer = 0; askResume = false; } // свой запуск отменяет автопродолжение
       playing = v;
       playBtn.querySelector("span").textContent = v ? "Пауза" : (t >= total - .01 ? "Сначала" : "Смотреть");
       playBtn.querySelector("svg").innerHTML = v ? '<path d="M4 2h3v12H4zM9 2h3v12H9z"/>' : '<path d="M4 2l10 6-10 6z"/>';
@@ -357,7 +359,7 @@ def cancel_booking(booking_id: str) -> str:
     mq.addEventListener?.("change", render);
 
     render();
-    return { goStep, pause: () => setPlaying(false), steps: STEPS };
+    return { goStep, pause: () => { clearTimeout(askTimer); askTimer = 0; askResume = false; setPlaying(false); }, steps: STEPS };
   }
 
   window.CodeVideo = { mount };

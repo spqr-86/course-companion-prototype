@@ -135,6 +135,40 @@ with sync_playwright() as p:
     check("cv-ask no Javascript errors", not errors)
     context.close()
 
+    # Автопродолжение вопроса не переживает ручной запуск и уход из раздела.
+    def secs(pg):
+        m, sec = pg.locator(".cv-time").inner_text().split(" / ")[0].split(":")
+        return int(m) * 60 + int(sec)
+    context = browser.new_context(viewport={"width": 1024, "height": 800})
+    context.add_init_script(ONBOARDED)
+    page = context.new_page()
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(BASE + "#tools-mcp-codevideo", wait_until="networkidle")
+    page.wait_for_timeout(1000)
+    ask = page.locator(".cv-ask")
+    page.locator("[data-step='3']").click()
+    page.locator("[data-cv=play]").click()
+    ask.wait_for(state="visible", timeout=12000)
+    page.locator("[data-cv=play]").click()  # «Смотреть» при открытом вопросе
+    page.wait_for_timeout(11000)  # дольше таймера автопродолжения
+    t1 = secs(page)
+    page.wait_for_timeout(3000)
+    dt = secs(page) - t1
+    check("cv-ask manual play + timer: single tick chain (1x)", 2 <= dt <= 4)
+    check("cv-ask manual play: no Javascript errors", not errors)
+    page.reload(wait_until="networkidle")
+    page.wait_for_timeout(800)
+    page.locator("[data-step='3']").click()
+    page.locator("[data-cv=play]").click()
+    ask.wait_for(state="visible", timeout=12000)
+    page.evaluate("location.hash='tools-mcp-notes'")
+    page.wait_for_timeout(500)
+    t0 = page.locator(".cv-time").inner_text()
+    page.wait_for_timeout(11000)
+    check("cv-ask leaving section: no resume in hidden section", page.locator(".cv-time").inner_text() == t0)
+    context.close()
+
     # Лаба в режиме «Проверить себя»: без горизонтального скролла на 390.
     context = browser.new_context(viewport={"width": 390, "height": 844}, color_scheme="dark")
     context.add_init_script(ONBOARDED)
